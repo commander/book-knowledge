@@ -1,0 +1,8 @@
+Write 5 question-answer pairs about this passage.
+
+Write each pair on two lines, in this form:
+Q: <question>
+A: <answer>
+
+Passage:
+{PASSAGE}

@@ -1,6 +1,6 @@
 # Pipeline design (freelancer side)
 
-Status: DRAFT for review. No code exists yet.
+Status: E0 code written (stages split, data, train, save; not tested on a GPU yet). The other stages do not exist yet.
 
 This document gives the design of `run_book.py`, the pipeline that puts the
 knowledge of one book into the weights of Qwen2.5-3B-Instruct. The rules and the

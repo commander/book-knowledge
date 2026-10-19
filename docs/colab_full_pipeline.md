@@ -21,7 +21,7 @@ Many parts do not exist yet. Each step shows its state:
 | Judge: labels the answers blindly with the API | `src/lab_eval.py judge`, `prompts/judge_*.txt` | READY (not tested with a real API yet) |
 | Score report: four pass lines, paired bootstrap, retention | `src/lab_eval.py score`, `retention`, `hand-check` | READY |
 | Baseline recipe: fixed teacher data + QLoRA training | `src/baseline_recipe.py teacher`, `train` | READY (not tested on a GPU yet) |
-| Freelancer pipeline `run_book.py` | | MISSING |
+| Freelancer pipeline `run_book.py` | `src/run_book.py`, `src/book_pipeline/`, `pipeline_config.json`, `pipeline_prompts/` | E0 READY (stages split, data, train, save; not tested on a GPU yet). Other stages MISSING |
 | Sealing script: selects and prepares the sealed books | | MISSING |
 | Table parsing in PDFs | `src/pdf_to_text.py` | Temporary: rotated pages are skipped (`agent.md` 5c) |
 
@@ -389,19 +389,55 @@ twin and everyday counts, and the hand-check result. These are the "Floor" and
 A good result: floor near 0-10% (the floor filter removed the questions that the
 base model knows), baseline clearly higher.
 
-## 7. Phase 2: develop the pipeline on book 1 (MISSING)
+## 7. Phase 2: develop the pipeline on book 1 (E0 READY)
 
-- Build `run_book.py --book work/<book>/book.txt --state work/state/` (stages in
-  `book_knowledge_project.md` 6.1: split, facts, training data, cue-word check on
-  its own data, QLoRA with replay, self-check, save, time log).
-- Use only the book 1 **dev** exam. Use Qwen2.5-1.5B for fast tests, then
-  Qwen2.5-3B for real measurements.
-- After each change, record together: knowledge score, trap labels, twin
-  refusals, everyday refusals.
-- Stop when the dev exam shows a gain of about +12 to +15 points and the
-  restraint and everyday lines pass.
-- Cap for each book: 5 T4-hours, 10 hours wall clock, all stages included.
-  Do not load the teacher and the student on a T4 at the same time.
+Design, experiment list and start values: `docs/pipeline_design.md`.
+
+- Use only the book 1 **dev** exam. Do not run `hand-check` on the book 1
+  acceptance exam during development.
+- Use a **new state folder for each experiment** (for example
+  `work/state-e0`). A state folder holds one chain of books. A merged 3B model
+  uses about 6 GB on Drive: delete the state folders of old experiments.
+- After each experiment, record together: knowledge score, trap labels, twin
+  refusals, everyday refusals, and the time log.
+- Cap for each book: 5 T4-hours, 10 hours wall clock, all stages and the exam
+  answers included.
+
+### 7.1 E0: the baseline data through the pipeline code
+
+E0 checks that the pipeline code works from start to end, and measures the
+speed on a T4. `pipeline_config.json` has the baseline teacher prompt and the
+baseline training values, so the dev score must be near the baseline score
+(10.7%). The paired interval against `baseline` must contain 0.
+
+GPU runtime (T4):
+
+```
+!pip install -q -r requirements-gpu.txt
+!python src/run_book.py --book work/critical-software-studies/book.txt --state work/state-e0
+!python src/lab_eval.py answer --book critical-software-studies --exam dev --run pipeline-e0 --model work/state-e0/model
+```
+
+- `run_book.py` runs the stages split, data (teacher), train, save. Each stage
+  is a separate process. If Colab disconnects, run the same command again: it
+  skips the completed stages and the training continues from its last
+  checkpoint.
+- It prints only counts and times. The time log is in
+  `work/state-e0/<book_id>/time_log.json`. It counts all sessions, also the
+  sessions cut by a disconnect.
+- It refuses lab-side paths (exams, `work/runs/`, `exam_config.json`).
+- If you change `pipeline_config.json` after a book started, it refuses to
+  continue. Use a new state folder.
+
+CPU runtime (judge and score):
+
+```
+!python src/lab_eval.py judge --book critical-software-studies --exam dev --run pipeline-e0
+!python src/lab_eval.py score --book critical-software-studies --exam dev --run pipeline-e0 --baseline baseline
+```
+
+Send me: the `run_book.py` output (counts and time by stage), the `answer`
+time, and the `score` output. The times give the data amounts for E1.
 
 ## 8. Phase 3: open three-book test (MISSING, needs Phase 2)
 
