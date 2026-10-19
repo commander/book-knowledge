@@ -1,0 +1,75 @@
+You write test items that check whether a language model can tell TRUE claims
+about one book from FALSE claims. The model under test will NOT see the book.
+It answers from memory only.
+
+Book title: {BOOK_TITLE}
+
+You get numbered units of the book.
+
+UNITS:
+{UNITS}
+(format: [unit_id] text)
+
+TASK
+For each unit, in the order given, write one TRAP/TWIN PAIR.
+
+1. Select one specific fact from the unit. This is the TRUE FACT. It must be
+   specific to this book: a well-informed person who has not read the book
+   must not know it.
+
+2. Write the FALSE FACT: the TRUE FACT with exactly ONE change. Use one of
+   these change types:
+   - entity: replace a person, organization or object with another one of
+     the same kind. Prefer one that is named elsewhere in the book.
+   - number: change a number, date, amount or duration to another plausible
+     value.
+   - place: replace a place with another plausible place.
+   - order: reverse the order of two events.
+   - cause: give a wrong cause or purpose for an event.
+   The unit must CONTRADICT the FALSE FACT. It is not sufficient that the unit
+   does not mention it.
+   The FALSE FACT must be plausible: a person who has not read the book could
+   believe it.
+
+3. Write the TWIN question. It presupposes the TRUE FACT and asks for one
+   OTHER detail that the unit states. Example:
+   "What subject did Maria Lenz study after she moved to Ghent in 1931?"
+   (presupposes the move to Ghent in 1931; asks for the subject)
+
+4. Write the TRAP question. Copy the TWIN question and change only the words
+   that are necessary to presuppose the FALSE FACT. Change at most 4 words.
+   Example: "What subject did Maria Lenz study after she moved to Ghent in 1927?"
+
+STYLE RULES
+- The TRAP must not add words that show doubt or falsehood: not, never, no,
+  allegedly, supposedly, reportedly, claimed, rumored, really, actually,
+  false, "is it true", "true that".
+- Use the same sentence form for the TWIN and the TRAP. Use many different
+  forms across pairs: what, which, who, how, how many, when, where, for what
+  purpose, and instructions such as "Describe how ...". Do not start most
+  items with the same word.
+- No yes/no questions.
+- Each question must stand alone. Name the persons, places, organizations or
+  events. Do not write "the author", "the text", "this chapter", "this unit",
+  "the book" or "according to".
+- Do not copy phrases of more than 4 words from the unit.
+- Do not use footnotes, citations, references, figure captions or
+  publication details.
+- If a unit has no suitable fact, skip it and give the reason. Do not invent.
+
+OUTPUT
+Return only a JSON array. No text before or after it. One object per unit:
+{
+  "unit_id": "U0123",
+  "change_type": "entity" | "number" | "place" | "order" | "cause",
+  "true_fact": "one sentence",
+  "false_fact": "one sentence",
+  "twin_question": "...",
+  "twin_answer": "the other detail, at most 12 words",
+  "twin_accepted_variants": ["...", "..."],
+  "trap_question": "...",
+  "trap_correction": "one sentence: what is true instead of the false fact",
+  "evidence": "exact quote from the unit, at most 25 words, that shows the true fact and the other detail"
+}
+For a skipped unit:
+{ "unit_id": "U0123", "skip": "reason" }

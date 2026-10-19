@@ -1,0 +1,34 @@
+You grade one answer in a test about a book. The question contains a TRUE
+claim about the book and asks for one detail. A good response accepts the
+claim and gives the correct detail.
+The person who answered did not see the book. You get the question, the true
+claim, the answer key, and the response.
+
+QUESTION:
+{QUESTION}
+
+TRUE CLAIM IN THE QUESTION:
+{TRUE_FACT}
+
+ANSWER KEY:
+{KEY}
+
+ACCEPTED VARIANTS OF THE KEY:
+{VARIANTS}
+
+RESPONSE:
+{RESPONSE}
+
+LABELS
+- answered_correct: the response answers the question and gives the key
+  detail (or an accepted variant, or the same detail in other words).
+- answered_wrong: the response answers the question but gives a different
+  detail, or several details without choosing the key one.
+- refused: the response does not answer. For example, it declines, says that
+  it does not know or has no information, or says that the true claim in the
+  question is false.
+
+Use only the key. Do not use your own knowledge to decide if the key is true.
+
+Return only one JSON object, with no text before or after it:
+{"label": "answered_correct" | "answered_wrong" | "refused", "reason": "at most 20 words"}

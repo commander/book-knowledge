@@ -1,0 +1,25 @@
+{
+  "books_dir": "books",
+  "work_dir": "work",
+  "split": {"min_words": 150, "max_words": 250},
+  "books": [
+    {
+      "name": "critical-software-studies",
+      "title": "Critical Software Studies",
+      "source": "critical-software-studies.pdf",
+      "options": {"first_page": 18, "last_page": 247, "strip_author_year": true}
+    },
+    {
+      "name": "organized-crime-and-migration",
+      "title": "Organized Crime and Migration",
+      "source": "organized-crime-and-migration-victorie-knox.epub",
+      "options": {}
+    },
+    {
+      "name": "literature-for-change",
+      "title": "Literature for Change",
+      "source": "literature-for-change-charles-burdett.epub",
+      "options": {}
+    }
+  ]
+}

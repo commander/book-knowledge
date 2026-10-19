@@ -1,0 +1,30 @@
+# Book files (PDF, EPUB) and all text made from them
+books/
+*.pdf
+*.epub
+
+# Generated work: book text, units, exams, answers, labels, adapters, checkpoints
+work/
+state/
+pipeline/
+
+# Private notes and exam records (local only)
+agent.md
+book_knowledge_project.md
+exam-config*.json
+exam_config*.json
+
+# Secrets
+.env
+*.env
+*.key
+*.pem
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# System
+.DS_Store

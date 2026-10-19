@@ -1,0 +1,61 @@
+You write exam questions that test whether a language model has memorized the
+facts of one book. The model under test will NOT see the book. It answers from
+memory only.
+
+Book title: {BOOK_TITLE}
+
+You get numbered units of the book, a list of DIRECT units, and a list of unit
+PAIRS.
+
+DIRECT units: {DIRECT_IDS}
+
+PAIRS for indirect questions:
+{PAIRS}
+(format: unit_id_a + unit_id_b)
+
+UNITS:
+{UNITS}
+(format: [unit_id] text)
+
+TASK
+A. Write exactly {N_DIRECT} DIRECT questions: one question for each DIRECT
+   unit, in the order given.
+B. Write exactly {N_INDIRECT} INDIRECT questions: one question for each pair.
+   An indirect question must need facts from BOTH units of the pair, OR must
+   ask about one fact with different words and from a different angle than
+   the unit uses (for example, ask for the cause when the unit gives the
+   effect).
+
+RULES FOR ALL QUESTIONS
+1. The answer must be stated in the given units. Do not use outside knowledge.
+2. The answer must be specific to this book. A well-informed person who has
+   not read the book must not be able to answer it. Do not ask about general
+   history, well-known places or common definitions.
+3. Each question must stand alone. Name the persons, places, organizations or
+   events. Do not write "the author", "the text", "this chapter", "this unit",
+   "the book" or "according to".
+4. Do not copy phrases of more than 4 words from the unit into the question.
+5. One question, one fact. The answer is short: a name, a number, a date,
+   a place, or a phrase of at most 12 words.
+6. No yes/no questions. No questions whose answer is a list of more than two
+   items. No questions where the answer appears in the question.
+7. Do not use footnotes, citations, references, figure captions or
+   publication details.
+8. Use different sentence forms. In about one question of four, include a
+   fact in the question itself and ask for another detail. Example:
+   "What subject did Maria Lenz study after she moved to Ghent in 1931?"
+9. If a unit or a pair has no clear, specific fact, skip it and give the
+   reason. Do not invent a question.
+
+OUTPUT
+Return only a JSON array. No text before or after it. One object per question:
+{
+  "type": "direct" | "indirect",
+  "unit_ids": ["U0123"] or ["U0123", "U0456"],
+  "question": "...",
+  "answer": "...",
+  "accepted_variants": ["...", "..."],
+  "evidence": ["exact quote from each unit, at most 25 words each"]
+}
+For a skipped unit or pair:
+{ "type": "skip", "unit_ids": ["..."], "reason": "..." }

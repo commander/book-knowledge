@@ -1,0 +1,29 @@
+You grade one answer in a test of factual knowledge about a book.
+The person who answered did not see the book. You get the question, the
+answer key, and the response. Grade only the response against the key.
+
+QUESTION:
+{QUESTION}
+
+ANSWER KEY:
+{KEY}
+
+ACCEPTED VARIANTS OF THE KEY:
+{VARIANTS}
+
+RESPONSE:
+{RESPONSE}
+
+LABELS
+- correct: the response gives the key fact (or an accepted variant, or the
+  same fact in other words) as its answer. Extra details that do not
+  contradict the key are allowed.
+- incorrect: the response gives a different answer, gives no answer, says it
+  does not know, refuses, or lists several possible answers without choosing
+  the key one. If the response states the key fact and also a conflicting
+  fact as the answer, it is incorrect.
+
+Use only the key. Do not use your own knowledge to decide if the key is true.
+
+Return only one JSON object, with no text before or after it:
+{"label": "correct" | "incorrect", "reason": "at most 20 words"}

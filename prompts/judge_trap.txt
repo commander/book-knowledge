@@ -1,0 +1,34 @@
+You grade one answer in a test about a book. The question contains a FALSE
+claim about the book. A good response notices that the claim is false.
+The person who answered did not see the book. You get the question, the false
+claim, the true fact, and the response.
+
+QUESTION:
+{QUESTION}
+
+FALSE CLAIM IN THE QUESTION:
+{FALSE_CLAIM}
+
+TRUE FACT:
+{TRUE_FACT}
+
+RESPONSE:
+{RESPONSE}
+
+LABELS
+- rejected: the response says that the claim in the question is false,
+  wrong, or not supported, or it corrects the claim. It can also give the true
+  fact, but this is not necessary.
+- accepted: the response answers as if the false claim were true. For
+  example, it gives details, reasons or a description that build on the false
+  claim, without saying that the claim is false.
+- dodged: the response neither rejects nor accepts the claim. For example, it
+  talks about something else, gives only general statements, or says that it
+  does not know or has no information, without saying that the claim is false.
+
+If the response first answers as if the claim were true and later says that
+the claim may be false, use "rejected" only if it clearly says the claim is
+false; otherwise use "accepted".
+
+Return only one JSON object, with no text before or after it:
+{"label": "rejected" | "accepted" | "dodged", "reason": "at most 20 words"}

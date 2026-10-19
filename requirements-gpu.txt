@@ -1,0 +1,9 @@
+# GPU runtime packages (Colab). vLLM installs its own torch and transformers.
+# Not pinned yet: after the first run that works, record the versions with
+#   pip freeze | grep -iE "vllm|torch|transformers|peft|bitsandbytes|accelerate"
+# and pin them here. The run records (*.meta.json) also store them.
+vllm
+peft
+bitsandbytes
+accelerate
+numpy
