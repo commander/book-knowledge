@@ -18,7 +18,7 @@ Read these files before you start work:
 ## Two roles, kept separate
 
 - **Lab side** (exists now): book cleaning (`src/pdf_to_text.py`), exam building (`src/exam_builder.py`), prompts in `prompts/`, the shared everyday set `data/everyday.jsonl`. Exams are written and judged by a non-Qwen model (Claude chat, or the Anthropic, OpenAI or Gemini API), never by the pipeline teacher. Use one question-writer model for each book.
-- **Freelancer side** (E0 only): `src/run_book.py --book <txt> --state <dir>`, code in `src/book_pipeline/`, settings in `pipeline_config.json`, teacher prompts in `pipeline_prompts/`. Design: `docs/pipeline_design.md`. The pipeline must not import lab code; it has its own copy of the splitter. One command per book, no changes between books. `state/` carries weights and replay data from book to book. The pipeline must not see the exams.
+- **Freelancer side** (Phase 2 experiments, log in `docs/experiments.md`): `src/run_book.py --book <txt> --state <dir>`, code in `src/book_pipeline/`, settings in `pipeline_config.json`, teacher prompts in `pipeline_prompts/`. Design: `docs/pipeline_design.md`. The pipeline must not import lab code; it has its own copy of the splitter. One command per book, no changes between books. `state/` carries weights and replay data from book to book. The pipeline must not see the exams.
 
 ## Environment
 
