@@ -13,6 +13,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | floor | 4.0% (6/150) | | 4 / 44 / 12 | 3 / 15 / 12 | 0 | |
 | baseline | 10.7% (16/150; direct 10, indirect 6) | | 1 / 59 / 0 | 5 / 25 / 0 | 0 | |
 | E0 | 13.3% (20/150; direct 13, indirect 7) | +3 [−3, 8] | 1 / 59 / 0 | 3 / 26 / 1 | 0 | 0.53 h |
+| E1 | 9.3% (14/150; direct 5, indirect 9) | −1 [−7, 5] | 0 / 57 / 3 | 4 / 26 / 0 | 0 | 1.03 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -40,7 +41,7 @@ Conclusion for E1: the teacher is fast. The training speed (about 425 tokens/s,
 with short examples) is the limit. Test a faster training setup before the
 data grows.
 
-## E1: facts and 3 questions for each fact (planned)
+## E1: facts and 3 questions for each fact (2026-10-21)
 
 Decision (2026-10-21): all experiments use the 3B student, not 1.5B first.
 E0 used only 0.53 h of the cap, and 3B results compare directly with the 3B
@@ -60,3 +61,25 @@ Changes from E0:
 
 What to look at: knowledge (mainly direct), the number of facts and pairs,
 the time of each stage, the training speed in tokens/s.
+
+Result: no gain. Knowledge is the same as the baseline (the interval contains
+0). Direct questions went down (13 → 5), indirect went up (7 → 9); both changes
+are in the noise range. No trap is rejected (expected: E1 has no trap training).
+
+Measured on a T4:
+
+| Stage | Time | Notes |
+|---|---|---|
+| facts | 14.3 min | 366 units in 8 min 26 s, then a retry of 96 units in 2 min 8 s. 2,542 facts. Removed: no_quote 266, duplicate 5. **69 units (19%) have no facts** (no JSON after the retry) |
+| data | 18.6 min | 734 calls in 15 min 30 s, about 380 output tokens/s. 5,072 pairs (direct 1,912, reworded 1,980, reverse 1,180), 2,292 facts covered. Removed: forbidden_word 1,221, key_not_in_question 989, key_not_in_answer 173, other 171 |
+| train | 27.7 min | 951 steps (3 epochs of 317), 1.64 s per step; 297,838 tokens per epoch; about 575 tokens/s (E0: 425); loss 3.32 → 1.62. One CUDA out-of-memory warning at step 149; the allocator recovered |
+| save | 1.3 min | |
+| exam answers | 2.8 min | |
+
+Open questions (diagnosis with `src/diagnose_run.py`):
+- Why do 69 units give no JSON? (reply cut by `max_tokens`, or a different form)
+- Which words does the forbidden-word check find? 1,221 removed pairs is too many
+  for references to the source only.
+- Are the exam answers in the training data (a data problem), or are they in the
+  data and the model did not learn them (a training problem)?
+- Does the model answer its own training questions? A final loss of 1.62 is high.
