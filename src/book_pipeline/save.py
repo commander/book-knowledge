@@ -13,6 +13,19 @@ import time
 from .common import read_json, read_jsonl, write_json, write_jsonl
 
 
+def skip_torchao_check():
+    """peft stops with an ImportError when an old torchao is installed (Colab has
+    0.10), also for plain fp16 layers that do not use torchao. The pipeline does
+    not use torchao, so tell peft that it is not installed."""
+    import peft.import_utils
+    peft.import_utils.is_torchao_available = lambda: False
+    try:
+        import peft.tuners.lora.torchao
+        peft.tuners.lora.torchao.is_torchao_available = lambda: False
+    except ImportError:
+        pass
+
+
 def run(ctx):
     d = ctx.book_dir / "train"
     start_model = read_json(d / "start_model.json")["start_model"]
@@ -25,6 +38,7 @@ def run(ctx):
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
+    skip_torchao_check()
 
     merged_ok = ctx.book_dir / "merged.ok"   # state/model is already the merged model: do not merge twice
     if not merged_ok.exists():
