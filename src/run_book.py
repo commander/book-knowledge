@@ -28,7 +28,7 @@ from book_pipeline.common import (REPO, Ctx, code_hashes, read_json, sha256_byte
                                   sha256_file, write_json)
 from book_pipeline.timelog import TimeLog  # noqa: E402
 
-STAGES = {"split": "book_pipeline.split", "data": "book_pipeline.data",
+STAGES = {"split": "book_pipeline.split", "facts": "book_pipeline.facts", "data": "book_pipeline.data",
           "train": "book_pipeline.train", "save": "book_pipeline.save"}
 # Lab-side files. The pipeline must not read them.
 FORBIDDEN = re.compile(r"(^|[/_.-])(exam|candidates|rejects|floor|labels|answers|score|hand_check)"

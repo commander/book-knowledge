@@ -1,6 +1,6 @@
 # Pipeline design (freelancer side)
 
-Status: E0 code written (stages split, data, train, save; not tested on a GPU yet). The other stages do not exist yet.
+Status: E0 done (same as the baseline). E1 code written: stages split, facts, data (modes `baseline_qa`, `fact_qa`), train (with length-grouped batches), save. The other stages do not exist yet. Results: `docs/experiments.md`.
 
 This document gives the design of `run_book.py`, the pipeline that puts the
 knowledge of one book into the weights of Qwen2.5-3B-Instruct. The rules and the
@@ -270,8 +270,8 @@ Rules for development:
   `--exam dev` only.)
 - Change one part at a time. After each change, record all four lines
   together. A change that improves traps often makes twins worse.
-- Fast tests use Qwen2.5-1.5B. On 1.5B, compare the experiments with each
-  other, not with the pass lines (the baseline is for 3B).
+- All experiments use Qwen2.5-3B (decision of 2026-10-21: E0 used only
+  0.53 h of the cap, so 1.5B tests are not necessary).
 
 Order of the experiments:
 

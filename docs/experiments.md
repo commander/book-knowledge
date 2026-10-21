@@ -39,3 +39,24 @@ Problems found and fixed during E0:
 Conclusion for E1: the teacher is fast. The training speed (about 425 tokens/s,
 with short examples) is the limit. Test a faster training setup before the
 data grows.
+
+## E1: facts and 3 questions for each fact (planned)
+
+Decision (2026-10-21): all experiments use the 3B student, not 1.5B first.
+E0 used only 0.53 h of the cap, and 3B results compare directly with the 3B
+baseline and the pass lines.
+
+Changes from E0:
+- New stage `facts` (teacher, temperature 0.2): 6-12 facts for each unit, each
+  with a key and a quote. Facts whose quote is not in the unit are removed.
+- Data mode `fact_qa` (teacher, temperature 0.7): for each fact a direct, a
+  reworded and a reverse question, with short, one-sentence and 1-2 sentence
+  answers. Pairs are removed if they refer to the source ("the text", "this
+  book"), are yes/no questions, repeat the question in the answer, or do not
+  contain the key (direct answers, reverse questions).
+- Training: the same values as E0 (rank 16, q/k/v/o, 3 epochs, lr 2e-4,
+  batch 16), but 16 examples on the GPU at the same time (no accumulation)
+  and length-grouped batches, for speed.
+
+What to look at: knowledge (mainly direct), the number of facts and pairs,
+the time of each stage, the training speed in tokens/s.

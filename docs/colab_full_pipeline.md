@@ -439,6 +439,29 @@ CPU runtime (judge and score):
 Send me: the `run_book.py` output (counts and time by stage), the `answer`
 time, and the `score` output. The times give the data amounts for E1.
 
+### 7.2 Each next experiment (E1, E2, ...)
+
+`pipeline_config.json` holds the settings of the current experiment (the
+`experiment` field). Results and plans: `docs/experiments.md`.
+
+GPU runtime:
+
+```
+!git pull origin main
+!python src/run_book.py --book work/critical-software-studies/book.txt --state work/state-e1
+!python src/lab_eval.py answer --book critical-software-studies --exam dev --run pipeline-e1 --model work/state-e1/model
+```
+
+CPU runtime (after the API key cell):
+
+```
+!python src/lab_eval.py judge --book critical-software-studies --exam dev --run pipeline-e1
+!python src/lab_eval.py score --book critical-software-studies --exam dev --run pipeline-e1 --baseline baseline
+```
+
+Change `e1` to the number of the experiment. Delete the `work/state-eN`
+folders of old experiments when their result is recorded (about 6 GB each).
+
 ## 8. Phase 3: open three-book test (MISSING, needs Phase 2)
 
 From an empty `work/state/`: book 1, then Practice A, then Practice B, one

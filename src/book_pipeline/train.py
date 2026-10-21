@@ -60,6 +60,24 @@ def build_examples(tok, rows, max_len):
     return examples, cut
 
 
+def length_grouped(examples, batch, epochs, seed):
+    """All epochs in one list. Each epoch: a new random order, then examples of
+    similar length in the same batch (less padding, faster steps), then the
+    batches in random order."""
+    rng = random.Random(seed)
+    out = []
+    for _ in range(epochs):
+        idx = list(range(len(examples)))
+        rng.shuffle(idx)
+        batches = []
+        for i in range(0, len(idx), batch * 50):
+            part = sorted(idx[i:i + batch * 50], key=lambda j: len(examples[j]["input_ids"]))
+            batches += [part[k:k + batch] for k in range(0, len(part), batch)]
+        rng.shuffle(batches)
+        out += [examples[j] for b in batches for j in b]
+    return out
+
+
 def collate(pad_id):
     import torch
 
@@ -93,6 +111,11 @@ def run(ctx):
     from transformers import (AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, Trainer,
                               TrainingArguments)
 
+    class OrderedTrainer(Trainer):
+        def _get_train_sampler(self, *args, **kwargs):
+            from torch.utils.data import SequentialSampler
+            return SequentialSampler(self.train_dataset)
+
     tok = AutoTokenizer.from_pretrained(start_model)
     rows = load_rows(ctx)
     replay, replay_counts = replay_rows(ctx, len(rows))
@@ -113,18 +136,24 @@ def run(ctx):
     model = get_peft_model(model, lora)
 
     ckpt = d / "checkpoints"
+    grouped = t.get("length_grouping", False)
+    if grouped:                          # the order is fixed here: the trainer must not shuffle it
+        train_set, epochs_arg = length_grouped(examples, t["per_device_batch"], t["epochs"], ctx.seed), 1
+        trainer_cls = OrderedTrainer
+    else:
+        train_set, epochs_arg, trainer_cls = examples, t["epochs"], Trainer
     # Warmup as a number of steps: newer transformers versions do not accept warmup_ratio.
     total_steps = math.ceil(len(examples) / eff) * t["epochs"]
     warmup_steps = int(t["warmup_ratio"] * total_steps)
     args = TrainingArguments(
-        output_dir=str(ckpt), num_train_epochs=t["epochs"], learning_rate=t["learning_rate"],
+        output_dir=str(ckpt), num_train_epochs=epochs_arg, learning_rate=t["learning_rate"],
         lr_scheduler_type=t["lr_scheduler"], warmup_steps=warmup_steps,
         per_device_train_batch_size=t["per_device_batch"], gradient_accumulation_steps=eff // t["per_device_batch"],
         fp16=True, logging_steps=10, save_strategy="steps", save_steps=t["save_steps"],
         save_total_limit=2, seed=ctx.seed, report_to=[], remove_unused_columns=False,
         dataloader_num_workers=0)
     pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
-    trainer = Trainer(model=model, args=args, train_dataset=examples, data_collator=collate(pad))
+    trainer = trainer_cls(model=model, args=args, train_dataset=train_set, data_collator=collate(pad))
     resume = any(ckpt.glob("checkpoint-*"))
     if resume:
         print(f"train: continuing from the last checkpoint in {ckpt}")
@@ -136,6 +165,7 @@ def run(ctx):
     n_tokens = sum(len(e["input_ids"]) for e in examples)
     meta = {"start_model": start_model, "train": t, "rows_book": len(rows), "rows_replay": replay_counts,
             "examples": len(examples), "examples_cut": cut, "tokens_per_epoch": n_tokens,
+            "length_grouping": grouped,
             "steps": trainer.state.global_step, "first_loss": losses[0] if losses else None,
             "last_loss": losses[-1] if losses else None, "loss_log": losses, "resumed": resume,
             "adapter_sha256": sha256_file(adapter / "adapter_model.safetensors"), "gpu": gpu_name(),

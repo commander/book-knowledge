@@ -1,0 +1,20 @@
+Below is a passage and a numbered list of facts from it. For each fact, write three different question-answer pairs:
+
+- "direct": a question that asks for the key of the fact. The answer is short: the key and at most 10 more words.
+- "reworded": a question about the same fact, with different words and a different sentence form. The answer is one full sentence.
+- "reverse": a question that gives the key and asks what it is, what it does or why it matters. The answer has 1 or 2 sentences, starts with the key, and gives the context.
+
+Rules:
+- A person who does not have the passage must understand each question. Write the full names of the people, concepts and things.
+- Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ..." in a question or an answer.
+- No yes/no questions.
+- Each answer gives the fact in its first sentence. Do not repeat the question at the start of the answer.
+
+Return only a JSON array, one object for each fact, with no text before or after it:
+[{"fact": 1, "direct": {"q": "...", "a": "..."}, "reworded": {"q": "...", "a": "..."}, "reverse": {"q": "...", "a": "..."}}]
+
+Passage:
+{PASSAGE}
+
+Facts:
+{FACTS}
