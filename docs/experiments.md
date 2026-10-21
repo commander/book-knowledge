@@ -116,7 +116,10 @@ Only the training changes: LoRA rank 64, alpha 128, all linear layers (q, k, v,
 o, gate, up, down), 8 epochs, 8 examples on the GPU (2 steps of accumulation,
 effective batch 16). The split, facts and data stages are copied from E1, so
 the result shows only the effect of the training. The teacher time of E1
-(32.9 min) is added to the E2 GPU time.
+(32.9 min) is added to the E2 GPU time. When you copy a book folder to a new
+state, remove `train/`, `done/train`, `done/save`, `merged.ok`, `time_log.json`
+and `run.json` (the first E2 run kept `merged.ok`, and the save stage did not
+merge).
 
 What to look at: recall of the training questions (target: above 80%),
 knowledge on dev, the training time.

@@ -41,6 +41,9 @@ def run(ctx):
     skip_torchao_check()
 
     merged_ok = ctx.book_dir / "merged.ok"   # state/model is already the merged model: do not merge twice
+    if merged_ok.exists() and not (model_dir / "config.json").exists() and not (tmp / "config.json").exists():
+        print(f"save: {merged_ok.name} exists, but {model_dir} has no model. Merging again.")
+        merged_ok.unlink()
     if not merged_ok.exists():
         shutil.rmtree(tmp, ignore_errors=True)
         model = AutoModelForCausalLM.from_pretrained(start_model, torch_dtype=torch.float16, device_map={"": 0})
