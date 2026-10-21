@@ -1,0 +1,16 @@
+Rewrite the passage below as an explanation for a reader who does not have it.
+
+Rules:
+- Keep every name, term, number, date, example and claim of the passage. Do not add facts that are not in the passage.
+- Use your own sentences, in a different order from the passage. Write the full names of the people, concepts and things.
+- Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ...". State the content directly.
+- Length: 120 to 250 words, plain prose.
+
+First write a request that a user could send to get this explanation: one sentence that names the main topic, for example "Explain how ..." or "Tell me about ...".
+
+Use exactly this form, with no other text:
+REQUEST: <the request>
+TEXT: <the explanation>
+
+Passage:
+{PASSAGE}

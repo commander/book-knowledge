@@ -19,16 +19,39 @@ def norm(s):
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+def escape_inner_quotes(s):
+    """Escape the double quotes inside string values. The teacher often copies
+    quoted words from the book ("critical mass") into a value without a backslash.
+    A quote is part of the JSON form only if it opens a string (after [ { , :) or
+    closes one (before a comma and the next string, or before : } ])."""
+    out, n = [], len(s)
+    for i, ch in enumerate(s):
+        if ch == '"' and (i == 0 or s[i - 1] != "\\"):
+            before = s[:i].rstrip()[-1:]
+            after = s[i + 1:].lstrip()
+            opens = before in ("[", "{", ",", ":")
+            closes = after[:1] in (":", "}", "]", "") or re.match(r',\s*["{\[]', after)
+            if not (opens or closes):
+                out.append('\\"')
+                continue
+        out.append(ch)
+    return "".join(out)
+
+
 def parse_json_list(text):
-    """The first JSON array in a reply (also inside ```json fences). None if there is no valid array."""
+    """The first JSON array in a reply (also inside ```json fences). None if there is no valid array.
+    A reply that fails is tried again with the inner quotes escaped."""
     start, end = text.find("["), text.rfind("]")
     if start < 0 or end <= start:
         return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except json.JSONDecodeError:
-        return None
-    return data if isinstance(data, list) else None
+    part = text[start:end + 1]
+    for candidate in (part, None):
+        try:
+            data = json.loads(candidate if candidate is not None else escape_inner_quotes(part))
+        except json.JSONDecodeError:
+            continue
+        return data if isinstance(data, list) else None
+    return None
 
 
 def quote_in_unit(quote, unit_norm, min_share):
@@ -45,11 +68,14 @@ def quote_in_unit(quote, unit_norm, min_share):
 
 def clean_facts(items, unit_text, c):
     unit_norm = norm(unit_text)
-    out, seen, dropped = [], set(), {"bad_form": 0, "no_quote": 0, "duplicate": 0}
+    out, seen, dropped = [], set(), {"bad_form": 0, "not_sentence": 0, "no_quote": 0, "duplicate": 0}
     for it in items or []:
         if not (isinstance(it, dict) and all(isinstance(it.get(k), str) and it[k].strip()
                                              for k in ("fact", "key", "quote"))):
             dropped["bad_form"] += 1
+            continue
+        if len(it["fact"].split()) < 5 or norm(it["fact"]) == norm(it["key"]):
+            dropped["not_sentence"] += 1         # a term only ("critical mass"), not a statement
             continue
         if not quote_in_unit(it["quote"], unit_norm, c["quote_min_share"]):
             dropped["no_quote"] += 1
@@ -81,7 +107,8 @@ def run(ctx):
         if not todo:
             break
 
-    rows, raw, total = [], [], {"bad_form": 0, "no_quote": 0, "duplicate": 0, "units_no_json": 0}
+    rows, raw, total = [], [], {"bad_form": 0, "not_sentence": 0, "no_quote": 0, "duplicate": 0,
+                                "units_no_json": 0}
     for u in units:
         text, finish = replies[u["id"]]
         items = parse_json_list(text)

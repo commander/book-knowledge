@@ -147,3 +147,28 @@ to "Which software uses a federated system approach?". Each fact needs more
 and different question forms, and full statements of the fact in text form
 (the passage rewrites of E3). The data bugs of E1 (69 units with no facts,
 removed pairs) also limit the coverage.
+
+## E3: data fixes, 3 question forms for each fact, passage rewrites (planned)
+
+Decision (2026-10-21): the data fixes and the rewrites go in one run, to save
+Colab time. The result shows the effect of all the changes together.
+
+Changes from E2:
+- Facts: a JSON reply with unescaped double quotes inside the values is
+  repaired (`escape_inner_quotes`). The prompt asks for single quotes and for a
+  full sentence for each fact. A fact with fewer than 5 words, or the same as
+  its key, is removed (`not_sentence`).
+- Questions (3a): 3 question forms for each fact, all asking for the key, each
+  with a one-sentence answer that contains the key. No reverse questions.
+  A source phrase ("in the passage", "according to the text") is removed from
+  the pair, and the pair is kept. "according to the" is forbidden only before
+  passage, text, book, chapter, excerpt or author. Questions with he, she, him,
+  his or her are removed (`pronoun`).
+- Passage rewrites (3c): 2 for each unit (an explanation, and a list of key
+  points), each as the answer to a request that the teacher writes.
+- Training: the E2 values, but 3 epochs (the data is about 2.5 times larger).
+
+Estimate: teacher about 45 min, training about 2 h, total about 3 h.
+
+What to look at: knowledge (direct and indirect), the facts and data counts,
+recall, coverage, the time.

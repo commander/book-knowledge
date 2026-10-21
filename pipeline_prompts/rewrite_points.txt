@@ -1,0 +1,18 @@
+Rewrite the passage below as a list of its key points for a reader who does not have it.
+
+Rules:
+- One point on each line, starting with "- ". Each point is one full sentence that is clear without the other points.
+- Keep every name, term, number, date, example and claim of the passage. Do not add facts that are not in the passage.
+- Write the full names of the people, concepts and things in each point. Do not use "he", "she", "it" or "this" for something that is not in the same sentence.
+- Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ...". State the content directly.
+- 6 to 12 points.
+
+First write a request that a user could send to get this list: one sentence that names the main topic, for example "What are the main points about ...?" or "Summarise what is known about ...".
+
+Use exactly this form, with no other text:
+REQUEST: <the request>
+TEXT:
+<the points>
+
+Passage:
+{PASSAGE}

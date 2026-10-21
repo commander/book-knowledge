@@ -1,17 +1,18 @@
-Below is a passage and a numbered list of facts from it. For each fact, write three different question-answer pairs:
+Below is a passage and a numbered list of facts from it. Each fact has a key: the short answer. For each fact, write 3 question-answer pairs. All 3 questions ask for the key, but each question uses different words and a different sentence form:
 
-- "direct": a question that asks for the key of the fact. The answer is short: the key and at most 10 more words.
-- "reworded": a question about the same fact, with different words and a different sentence form. The answer is one full sentence.
-- "reverse": a question that gives the key and asks what it is, what it does or why it matters. The answer has 1 or 2 sentences, starts with the key, and gives the context.
+1. A "What", "Which" or "Who" question that names the topic of the fact.
+2. A question that starts with a different word ("Name", "In", "How", "Why", "When", "Where") and describes the fact from a different side, for example its context, its cause or its result.
+3. A question that describes what the key does or means, without the words of the key, and asks for its name or term.
 
 Rules:
-- A person who does not have the passage must understand each question. Write the full names of the people, concepts and things.
+- A person who does not have the passage must understand each question. Write the full names of the people, concepts, works and organisations. Do not use "he", "she", "him", "his" or "her": write the name.
 - Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ..." in a question or an answer.
 - No yes/no questions.
-- Each answer gives the fact in its first sentence. Do not repeat the question at the start of the answer.
+- Each answer is one full sentence that contains the key exactly and states the fact. Do not repeat the question at the start of the answer.
+- Inside the values, use single quotes (') for quoted words, not double quotes.
 
 Return only a JSON array, one object for each fact, with no text before or after it:
-[{"fact": 1, "direct": {"q": "...", "a": "..."}, "reworded": {"q": "...", "a": "..."}, "reverse": {"q": "...", "a": "..."}}]
+[{"fact": 1, "pairs": [{"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}]}]
 
 Passage:
 {PASSAGE}

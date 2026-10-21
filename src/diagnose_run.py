@@ -62,6 +62,13 @@ def book_dir(state):
     return books[0]
 
 
+def load_data(d):
+    rows = []
+    for f in sorted((d / "data").glob("*.jsonl")):
+        rows += read_jsonl(f)
+    return rows
+
+
 def parse_json_list(text):
     import json
     start, end = text.find("["), text.rfind("]")
@@ -97,8 +104,11 @@ def cmd_data(a):
             if not isinstance(it, dict) or not isinstance(it.get("fact"), int) or not 1 <= it["fact"] <= len(r["facts"]):
                 continue
             f = facts[r["facts"][it["fact"] - 1]]
-            for kind in ("direct", "reworded", "reverse"):
-                p = it.get(kind) if isinstance(it.get(kind), dict) else {}
+            if isinstance(it.get("pairs"), list):        # E3 form
+                pairs = [("q", p) for p in it["pairs"] if isinstance(p, dict)]
+            else:                                        # E1 form
+                pairs = [(k, it[k]) for k in ("direct", "reworded", "reverse") if isinstance(it.get(k), dict)]
+            for kind, p in pairs:
                 q, ans = p.get("q") or "", p.get("a") or ""
                 if not isinstance(q, str) or not isinstance(ans, str):
                     continue
@@ -110,7 +120,7 @@ def cmd_data(a):
     print(f"forbidden words in answers:   {dict(hits_a.most_common(10))}")
     fact_hits = Counter(m.group(0).lower() for f in facts.values() for m in FORBIDDEN_WORDS.finditer(f["fact"]))
     print(f"forbidden words in the facts themselves: {dict(fact_hits.most_common(10))}")
-    print(f"reverse questions without the key: {len(no_key)}. Examples:")
+    print(f"reverse questions without the key (E1 form only): {len(no_key)}. Examples:")
     for key, q in rng.sample(no_key, min(a.show, len(no_key))):
         print(f"  KEY: {key}\n  Q:   {q}")
 
@@ -126,8 +136,7 @@ def cmd_coverage(a):
     rows = [r for r in load_exam(book, a.exam) if r["set"].startswith("knowledge")]
     labels = {r["qid"]: r["label"] for r in read_jsonl(run_dir(a) / f"labels_{a.exam}.jsonl")}
     answers = {r["qid"]: r["response"] for r in read_jsonl(run_dir(a) / f"answers_{a.exam}.jsonl")}
-    data_file = next((d / "data").glob("*.jsonl"))
-    train = read_jsonl(data_file)
+    train = load_data(d)
     facts = read_jsonl(d / "facts.jsonl") if (d / "facts.jsonl").exists() else []
     by_unit, facts_by_unit = {}, Counter(f["unit_id"] for f in facts)
     for t in train:
@@ -151,7 +160,8 @@ def cmd_coverage(a):
         table[(r["set"].replace("knowledge_", ""), where, lab)] += 1
         examples.append((where, lab, r, hit, sum(facts_by_unit[u] for u in units)))
 
-    print(f"{a.run} / {a.book} / {a.exam}: training data {data_file.name}, {len(train)} rows")
+    print(f"{a.run} / {a.book} / {a.exam}: training data {len(train)} rows "
+          f"({dict(Counter(t['type'] for t in train))})")
     for s in ("direct", "indirect"):
         print(f"  {s}:")
         for where in ("in unit data", "elsewhere in data", "not in data", "unit has no data"):
@@ -174,8 +184,7 @@ def cmd_coverage(a):
 def cmd_recall(a):
     d = book_dir(a.state)
     model = a.model or str(Path(a.state) / "model")
-    data_file = next((d / "data").glob("*.jsonl"))
-    rows = read_jsonl(data_file)
+    rows = load_data(d)
     keys = {f["fact_id"]: f["key"] for f in read_jsonl(d / "facts.jsonl")} if (d / "facts.jsonl").exists() else {}
     sample = random.Random(0).sample(rows, min(a.n, len(rows)))
 
