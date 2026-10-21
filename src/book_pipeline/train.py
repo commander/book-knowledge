@@ -4,6 +4,7 @@ The start model is state/model (the merged model of the last book), or the base
 model for the first book. The start model is recorded before the training, so a
 restart after a disconnect continues from the same model and checkpoint.
 """
+import math
 import random
 import time
 
@@ -112,9 +113,12 @@ def run(ctx):
     model = get_peft_model(model, lora)
 
     ckpt = d / "checkpoints"
+    # Warmup as a number of steps: newer transformers versions do not accept warmup_ratio.
+    total_steps = math.ceil(len(examples) / eff) * t["epochs"]
+    warmup_steps = int(t["warmup_ratio"] * total_steps)
     args = TrainingArguments(
         output_dir=str(ckpt), num_train_epochs=t["epochs"], learning_rate=t["learning_rate"],
-        lr_scheduler_type=t["lr_scheduler"], warmup_ratio=t["warmup_ratio"],
+        lr_scheduler_type=t["lr_scheduler"], warmup_steps=warmup_steps,
         per_device_train_batch_size=t["per_device_batch"], gradient_accumulation_steps=eff // t["per_device_batch"],
         fp16=True, logging_steps=10, save_strategy="steps", save_steps=t["save_steps"],
         save_total_limit=2, seed=ctx.seed, report_to=[], remove_unused_columns=False,

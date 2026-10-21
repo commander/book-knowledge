@@ -130,6 +130,11 @@ def cmd_answer(a):
     rows = load_exam(book, a.exam)
     s = cfg["answer_settings"]
     model = a.model or s["base_model"]
+    if a.model and model.count("/") != 1 and not Path(model).is_dir():
+        sys.exit(f"model folder {model} not found. Is the run that makes it complete?")
+    for p in (model, a.adapter):
+        if p and Path(p).is_dir() and not any(Path(p).glob("*.safetensors")):
+            sys.exit(f"{p} has no weights (*.safetensors). Is the run that makes it complete?")
     out_dir = run_dir(a)
     out = out_dir / f"answers_{a.exam}.jsonl"
     if out.exists() and not a.force:
