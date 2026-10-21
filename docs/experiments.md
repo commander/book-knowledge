@@ -83,3 +83,40 @@ Open questions (diagnosis with `src/diagnose_run.py`):
 - Are the exam answers in the training data (a data problem), or are they in the
   data and the model did not learn them (a training problem)?
 - Does the model answer its own training questions? A final loss of 1.62 is high.
+
+### E1 diagnosis (`src/diagnose_run.py`)
+
+Recall of 300 training questions (the model answers its own training data):
+direct 28%, reworded 17%, reverse 79%, all 35%. **The model did not learn its
+data.** This is the main cause.
+
+Coverage of the 90 dev direct questions: the answer is in the training data of
+its unit for 36 (3 correct), not in the data for 20, and the unit has no data
+for 12 (the other 22 match only rows of other units, a weak match). About one
+third of the direct answers are not in the data: this is the second cause.
+
+Data losses:
+- Facts with no JSON (69 units): all replies are complete arrays (finish
+  `stop`). The teacher puts unescaped double quotes in the quote values
+  (`"critical mass"`), so `json.loads` fails. Fix: structured output in vLLM,
+  or a tolerant parser.
+- Forbidden words: "passage" 934 + 333, "according to the" 326 (often a
+  correct use such as "according to the Viable System Model"), "the author" 92.
+  Fix: remove the source phrase ("in the passage") from the pair instead of
+  dropping the pair, and match "according to the" only before passage, text,
+  book, chapter or author.
+- Reverse questions without the key: 1,122. The teacher does not follow this
+  rule. The kept reverse pairs are easy (recall 79%) and do not help the exam.
+- Fact quality: some facts are only a term ("fact": "critical mass", "key":
+  "critical mass"), not a statement.
+
+## E2: stronger training on the E1 data (planned)
+
+Only the training changes: LoRA rank 64, alpha 128, all linear layers (q, k, v,
+o, gate, up, down), 8 epochs, 8 examples on the GPU (2 steps of accumulation,
+effective batch 16). The split, facts and data stages are copied from E1, so
+the result shows only the effect of the training. The teacher time of E1
+(32.9 min) is added to the E2 GPU time.
+
+What to look at: recall of the training questions (target: above 80%),
+knowledge on dev, the training time.
