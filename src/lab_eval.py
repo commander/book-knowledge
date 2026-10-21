@@ -241,6 +241,15 @@ def cmd_judge(a):
     settings = types.SimpleNamespace(model=model, max_tokens=max_tokens, temperature=temperature)
     lock = threading.Lock()
     stats = Counter()
+    errors = Counter()
+
+    if pending:                                        # one test call: stop at once on a setup error
+        try:
+            call(client, settings, judge_prompt(templates, rows[pending[0]], answers[pending[0]]))
+        except Exception as e:
+            sys.exit(f"the first API call failed, nothing was judged:\n  {type(e).__name__}: {e}\n"
+                     "Check the API key, judge.model and judge.temperature (a model that rejects "
+                     "temperature needs --temperature none, or \"temperature\": null in the config).")
 
     def work(qid):
         row = rows[qid]
@@ -251,9 +260,10 @@ def cmd_judge(a):
             try:
                 text, n_in, n_out, complete, reason = call(client, settings, prompt)
             except Exception as e:                      # API error: try again later
+                last_error = f"{type(e).__name__}: {e}"[:300]
                 with lock:
                     stats["api_errors"] += 1
-                last_error = f"{type(e).__name__}: {e}"[:300]
+                    errors[last_error] += 1
                 time.sleep(2)
                 continue
             with lock:
@@ -296,6 +306,8 @@ def cmd_judge(a):
                                       if counts[(g, lab)]))
     print(f"tokens this run: input {stats['input_tokens']}, output {stats['output_tokens']}"
           + (f", API errors {stats['api_errors']}" if stats["api_errors"] else ""))
+    for err, n in errors.most_common(3):
+        print(f"  API error ({n} times): {err}")
     bad = sum(1 for r in final.values() if r["label"] == "invalid")
     if bad or len(final) < len(rows):
         sys.exit(f"{bad} invalid and {len(rows) - len(final)} missing labels. Run 'judge' again.")
