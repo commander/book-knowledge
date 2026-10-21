@@ -13,7 +13,7 @@ coverage  For each knowledge item of the exam: is its answer in the training dat
           have the fact" from "the model did not learn the fact". Refuses sealed books.
 recall    Asks the trained model a sample of its own training questions (exam answer
           settings: chat template, greedy, 256 tokens) and counts the answers that
-          contain the fact key. A low share means the model did not learn its data.
+          contain the fact key or start with the trained answer. A low share means the model did not learn its data.
 
 The word match is rough: a gold answer is "in" a text if all its words of 3 or more
 letters (stop words not counted) are in the text.
@@ -191,7 +191,7 @@ def cmd_recall(a):
         resp = o.outputs[0].text
         # The fact key when there is one, otherwise the training answer.
         target = keys.get(r.get("fact_id")) or r["answer"]
-        ok = contains(target, resp)
+        ok = contains(target, resp) or norm(resp).startswith(norm(r["answer"]))
         got[(r["type"], ok)] += 1
         examples.append((ok, r, target, resp))
     print(f"recall of training questions, model {model}, {len(sample)} of {len(rows)} rows:")

@@ -14,6 +14,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | baseline | 10.7% (16/150; direct 10, indirect 6) | | 1 / 59 / 0 | 5 / 25 / 0 | 0 | |
 | E0 | 13.3% (20/150; direct 13, indirect 7) | +3 [−3, 8] | 1 / 59 / 0 | 3 / 26 / 1 | 0 | 0.53 h |
 | E1 | 9.3% (14/150; direct 5, indirect 9) | −1 [−7, 5] | 0 / 57 / 3 | 4 / 26 / 0 | 0 | 1.03 h |
+| E2 | 15.3% (23/150; direct 13, indirect 10) | +5 [−2, 11] | 0 / 60 / 0 | 2 / 27 / 1 | 0 | 2.37 h (0.55 teacher from E1 + 1.82) |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -110,7 +111,7 @@ Data losses:
 - Fact quality: some facts are only a term ("fact": "critical mass", "key":
   "critical mass"), not a statement.
 
-## E2: stronger training on the E1 data (planned)
+## E2: stronger training on the E1 data (2026-10-21)
 
 Only the training changes: LoRA rank 64, alpha 128, all linear layers (q, k, v,
 o, gate, up, down), 8 epochs, 8 examples on the GPU (2 steps of accumulation,
@@ -123,3 +124,26 @@ merge).
 
 What to look at: recall of the training questions (target: above 80%),
 knowledge on dev, the training time.
+
+Result: the best run so far, but line 1 fails (the interval contains 0).
+
+Training: 2,536 steps (8 epochs of 317), 2.49 s per step, 107 min, about 370
+tokens/s (rank 64 on all layers is slower than E1). Loss 2.56 → 0.001. The loss
+falls in steps at each epoch start: the model memorises the exact rows. One
+CUDA out-of-memory warning at step 224 (recovered).
+
+Recall of 300 training questions: direct 100%, reworded 67%, reverse 71%. All
+the "missed" examples repeat the trained answer word for word (the key is not in
+the trained answer), so the real recall is near 100%. **The model now knows its
+data. The training is no longer the limit.**
+
+Coverage of the 90 dev direct questions: answer in the unit data 36 (7 correct,
+E1: 3), not in the data 20 (1 correct), unit has no data 12 (2 correct).
+
+Conclusion: the model answers the trained question form, but not a new form of
+the same fact. Examples: the training row "What was he afraid of?" → "academic
+plagiarism" (a question with no subject); "BlueSky" learned only as the answer
+to "Which software uses a federated system approach?". Each fact needs more
+and different question forms, and full statements of the fact in text form
+(the passage rewrites of E3). The data bugs of E1 (69 units with no facts,
+removed pairs) also limit the coverage.
