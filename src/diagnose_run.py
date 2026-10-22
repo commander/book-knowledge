@@ -5,8 +5,8 @@
   python src/diagnose_run.py coverage --state work/state-e1 --run pipeline-e1 --book critical-software-studies --exam dev
   python src/diagnose_run.py recall   --state work/state-e1 --n 300          (GPU, vLLM)
 
-data      Why the facts and data stages lost units and pairs: finish reasons of the
-          facts replies with no JSON, the words that the forbidden-word check found,
+data      Why the facts and data stages lost units and pairs: the facts and fact_qa
+          replies with no JSON (before and after the quote repair), the words that the forbidden-word check found,
           examples of reverse questions without the key.
 coverage  For each knowledge item of the exam: is its answer in the training data of
           its unit? Joined with the judge labels. This separates "the data does not
@@ -29,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from lab_eval import find_book, load_config, load_exam, run_dir  # noqa: E402
 from exam_builder import read_jsonl  # noqa: E402
+from book_pipeline.facts import parse_json_list  # noqa: E402  (the pipeline parse, with the quote repair)
 
 STOP = set("the and for with from that this was were are has have had not but its into about "
            "than then them they their there which who whom what when where why how also".split())
@@ -69,7 +70,8 @@ def load_data(d):
     return rows
 
 
-def parse_json_list(text):
+def parse_raw(text):
+    """The JSON array of a reply, without the repair of the inner quotes (E1 and E2 parse)."""
     import json
     start, end = text.find("["), text.rfind("]")
     if start < 0 or end <= start:
@@ -81,6 +83,18 @@ def parse_json_list(text):
     return data if isinstance(data, list) else None
 
 
+def show_no_json(name, raw, id_key, rng, show):
+    """Count the replies with no JSON before and after the repair, and print examples of the lost ones."""
+    before = [r for r in raw if parse_raw(r["reply"]) is None]
+    lost = [r for r in raw if parse_json_list(r["reply"]) is None]
+    print(f"{name}: {len(raw)} replies, no JSON before repair {len(before)}, after repair {len(lost)}")
+    print("  finish reason of the lost replies: " + str(dict(Counter(r["finish"] for r in lost))))
+    print("  reply length in characters (lost): " + str(sorted(len(r["reply"]) for r in lost)[::max(1, len(lost) // 10)]))
+    for r in rng.sample(lost, min(show, len(lost))):
+        print(f"  --- {r[id_key]} finish {r['finish']}, start of reply:\n  {r['reply'][:300]!r}\n"
+              f"  end of reply:\n  {r['reply'][-200:]!r}")
+
+
 # ---------------------------------------------------------------- data
 
 def cmd_data(a):
@@ -88,13 +102,9 @@ def cmd_data(a):
     rng = random.Random(0)
 
     raw = read_jsonl(d / "raw" / "facts.jsonl")
-    bad = [r for r in raw if parse_json_list(r["reply"]) is None]
-    print(f"facts: {len(raw)} units, {len(bad)} with no JSON, {sum(r['kept'] == 0 for r in raw)} with 0 facts kept")
-    print("  finish reason of the units with no JSON: " + str(dict(Counter(r["finish"] for r in bad))))
-    print("  reply length in characters (no JSON): " + str(sorted(len(r["reply"]) for r in bad)[::max(1, len(bad) // 10)]))
-    for r in rng.sample(bad, min(a.show, len(bad))):
-        print(f"  --- {r['unit_id']} finish {r['finish']}, start of reply:\n  {r['reply'][:300]!r}\n"
-              f"  end of reply:\n  {r['reply'][-200:]!r}")
+    show_no_json("facts", raw, "unit_id", rng, a.show)
+    print(f"  units with 0 facts kept: {sum(r['kept'] == 0 for r in raw)}")
+    show_no_json("fact_qa", read_jsonl(d / "raw" / "fact_qa.jsonl"), "unit_id", rng, a.show)
 
     facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
     hits_q, hits_a, no_key = Counter(), Counter(), []
@@ -200,7 +210,11 @@ def cmd_recall(a):
         resp = o.outputs[0].text
         # The fact key when there is one, otherwise the training answer.
         target = keys.get(r.get("fact_id")) or r["answer"]
-        ok = contains(target, resp) or norm(resp).startswith(norm(r["answer"]))
+        if r.get("fact_id"):
+            ok = contains(target, resp) or norm(resp).startswith(norm(r["answer"]))
+        else:   # a long text: at least half of its content words are in the response
+            ws = set(words(r["answer"]))
+            ok = bool(ws) and len(ws & set(words(resp))) >= len(ws) / 2
         got[(r["type"], ok)] += 1
         examples.append((ok, r, target, resp))
     print(f"recall of training questions, model {model}, {len(sample)} of {len(rows)} rows:")

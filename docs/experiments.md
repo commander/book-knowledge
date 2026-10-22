@@ -15,6 +15,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E0 | 13.3% (20/150; direct 13, indirect 7) | +3 [−3, 8] | 1 / 59 / 0 | 3 / 26 / 1 | 0 | 0.53 h |
 | E1 | 9.3% (14/150; direct 5, indirect 9) | −1 [−7, 5] | 0 / 57 / 3 | 4 / 26 / 0 | 0 | 1.03 h |
 | E2 | 15.3% (23/150; direct 13, indirect 10) | +5 [−2, 11] | 0 / 60 / 0 | 2 / 27 / 1 | 0 | 2.37 h (0.55 teacher from E1 + 1.82) |
+| E3 | 26.7% (40/150; direct 20, indirect 20) | +16 [9, 23], line 1 PASS | 3 / 56 / 1 | 4 / 21 / 5 | 0 | 1.91 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -148,7 +149,7 @@ and different question forms, and full statements of the fact in text form
 (the passage rewrites of E3). The data bugs of E1 (69 units with no facts,
 removed pairs) also limit the coverage.
 
-## E3: data fixes, 3 question forms for each fact, passage rewrites (planned)
+## E3: data fixes, 3 question forms for each fact, passage rewrites (2026-10-22)
 
 Decision (2026-10-21): the data fixes and the rewrites go in one run, to save
 Colab time. The result shows the effect of all the changes together.
@@ -172,3 +173,53 @@ Estimate: teacher about 45 min, training about 2 h, total about 3 h.
 
 What to look at: knowledge (direct and indirect), the facts and data counts,
 recall, coverage, the time.
+
+### E3 result
+
+Pass lines: line 1 (knowledge) PASS, +16 points [9, 23]. Line 2 (restraint)
+FAIL: traps accepted 56 (maximum 2), twins refused 5 (maximum 2). Line 3
+(everyday) PASS. This is the first run that passes line 1.
+
+Measured on a T4:
+
+| Stage | Time | Notes |
+|---|---|---|
+| facts | 13.3 min | 2,645 facts (per unit median 7, maximum 12). Removed: not_sentence 27, no_quote 242, duplicate 16. Units with no JSON after the retry: 12 (E1: 69) |
+| data | 32.0 min | fact_qa 5,559 rows (q1 2,024, q2 1,747, q3 1,788), 2,111 of 2,645 facts covered, 787 calls. Rewrites 694 rows (median 122 words) |
+| train | 67.9 min | 6,253 rows, 465,650 tokens per epoch, 1,173 steps (3 epochs), loss 2.85 → 0.49. One CUDA OOM warning at step 8, recovered |
+| save | 1.6 min | |
+| total | 1.91 h | |
+
+fact_qa pairs removed: no_json 1,185 (395 facts in calls with no JSON after the
+retry), key_not_in_answer 859, forbidden_word 176, fact_missing 24, pronoun 21,
+yes_no 12, duplicate 10, repeats_question 3, bad_form 1. The no_json loss is
+the largest: 534 facts have no pairs.
+
+Recall of the training questions (300 rows): fact questions 96 to 97%.
+Rewrites 0%, because the check needed the full text word for word. The check
+now counts a rewrite as recalled when half of its content words are in the
+answer. The sample answers show that the model learned the start and the
+subject of each rewrite, but not the full text.
+
+Coverage of the dev knowledge questions (rough word match):
+
+| | in unit data | elsewhere in data | not in data | unit has no data |
+|---|---|---|---|---|
+| direct (90) | 75 (18 correct) | 1 (0) | 14 (2) | 0 |
+| indirect (60) | 53 (19 correct) | 2 (0) | 5 (1) | 0 |
+
+E2 direct: in unit data 36 (7 correct), unit has no data 12.
+
+Conclusions:
+- The data now covers most exam answers (75 of 90 direct). The model answers
+  about a quarter of these correctly. Many answers in the "in unit data" group
+  are only in a rewrite (for example "New Zealand", "dungeonmaster"), not in a
+  fact question. A fact that is only one word in a long text is not learned.
+- The rewrites and the 3 question forms gave the gain. Indirect questions went
+  from 10 to 20 correct without joined questions (E4).
+- Traps: the model accepts almost all false premises (56 of 60, baseline 59).
+  The training data has no example of a rejected premise. This is now the only
+  failed line.
+- 3 epochs at about 465k tokens per epoch did not memorise the data (end loss
+  0.49, E2: 0.001). E3 used less GPU time than E2.
+
