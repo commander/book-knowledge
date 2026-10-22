@@ -16,6 +16,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E1 | 9.3% (14/150; direct 5, indirect 9) | −1 [−7, 5] | 0 / 57 / 3 | 4 / 26 / 0 | 0 | 1.03 h |
 | E2 | 15.3% (23/150; direct 13, indirect 10) | +5 [−2, 11] | 0 / 60 / 0 | 2 / 27 / 1 | 0 | 2.37 h (0.55 teacher from E1 + 1.82) |
 | E3 | 26.7% (40/150; direct 20, indirect 20) | +16 [9, 23], line 1 PASS | 3 / 56 / 1 | 4 / 21 / 5 | 0 | 1.91 h |
+| E5 | 16.0% (24/150; direct 15, indirect 9) | +5 [−2, 13] | 0 / 60 / 0 | 4 / 21 / 5 | 0 | 2.34 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -234,7 +235,7 @@ Conclusions:
   In all 5 examples, the teacher left out a closing bracket: `"}]]` (the
   object has no `}`) or `"}]}` (no outer `]`).
 
-## E5: JSON bracket repairs, trap/twin pairs (planned)
+## E5: JSON bracket repairs, trap/twin pairs (2026-10-22)
 
 Decision (2026-10-22): E5 comes before E4, because line 2 is the only failed
 line. The JSON repairs go in the same run, to save Colab time. Part of the
@@ -269,3 +270,45 @@ about 90 min; total about 2.4 h.
 What to look at: traps accepted and dodged, twins refused (risk: more refusals
 of true questions), knowledge, the traps counts and cue score, the data check.
 If twins refused goes up, E5b uses a pair for every third fact.
+
+### E5 result
+
+All lines except line 3 fail. Knowledge went down from 26.7% to 16.0%
+(direct 20 → 15, indirect 20 → 9). Traps accepted 60 of 60.
+
+Measured on a T4: facts 14.5 min, data 39.5 min, train 84.8 min (6,979 rows,
+510,790 tokens per epoch, 1,309 steps, loss 2.55 → 0.20, 4 CUDA OOM warnings,
+all recovered), save 1.7 min, total 2.34 h.
+
+Data:
+- The JSON repairs worked: replies with no JSON after the repairs: facts 10
+  (E3: 12), fact_qa 6 of 787 (E3: 111), traps 14 of 457. fact_qa rows 6,076
+  (E3: 5,559), facts with questions 2,348 (E3: 2,111). Some recovered fact_qa
+  answers are only a phrase ("usually at night"), not a sentence.
+- Traps: only 104 pairs of 1,322 chosen facts. The 7B teacher did not do the
+  task: in 974 pairs the true and false questions are the same, and the false
+  detail is only in the answer; 132 pairs are yes/no questions; others are
+  statements, not questions. Many kept pairs are also poor ("It had a
+  moralizing stance, not a letter, ...").
+- Cue score 0.13 (no word cue, but on very few pairs).
+
+Recall (300 rows): fact questions 84 to 89% (E3: 96 to 97%), twin 8 of 8,
+trap 3 of 8.
+
+Coverage: direct in unit data 75 (14 correct; E3: 18), indirect in unit data
+57 (9 correct; E3: 19).
+
+Example of a changed answer form: dev-116 (a normal knowledge question) got
+"It is the collective boundary set by default retention periods, not
+data-retention periods, that is encoded by software." This is the trap answer
+form ("X, not Y") on a question with a true premise.
+
+Conclusions:
+- The trap/twin generation by the teacher in one step does not work with the
+  7B teacher. The trap question must be made by code from a true question, so
+  that the two questions are the same except for one detail.
+- The cause of the knowledge loss is not known. Possible causes: the trap rows
+  (the "X, not Y" form on true questions), the recovered fact_qa rows, or
+  run-to-run variation. A train-only run on the E5 data without traps.jsonl
+  separates the first cause from the others.
+
