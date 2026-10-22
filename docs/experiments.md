@@ -17,6 +17,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E2 | 15.3% (23/150; direct 13, indirect 10) | +5 [−2, 11] | 0 / 60 / 0 | 2 / 27 / 1 | 0 | 2.37 h (0.55 teacher from E1 + 1.82) |
 | E3 | 26.7% (40/150; direct 20, indirect 20) | +16 [9, 23], line 1 PASS | 3 / 56 / 1 | 4 / 21 / 5 | 0 | 1.91 h |
 | E5 | 16.0% (24/150; direct 15, indirect 9) | +5 [−2, 13] | 0 / 60 / 0 | 4 / 21 / 5 | 0 | 2.34 h |
+| E5a | 20.0% (30/150; direct 15, indirect 15) | +9 [1, 17], line 1 PASS | 1 / 58 / 1 | 5 / 17 / 8 | 0 | 1.4 h (train only, E5 data) |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -313,11 +314,32 @@ Conclusions:
   separates the first cause from the others.
 
 
-## E5a: E5 data without the trap rows (train only, running)
+## E5a: E5 data without the trap rows (train only)
 
 The E5 book folder copied to `work/state-e5a`, with `data/traps.jsonl` and the
 train and save outputs removed. Only the train and save stages run. Purpose:
 find if the trap rows caused the knowledge loss of E5.
+
+### E5a result
+
+- Training: 6,771 rows (E5 minus the 208 trap and twin rows), 1,270 steps,
+  loss 2.85 -> 0.30, 78.7 min. The printed stage times and GPU total (3.70 h)
+  include the E5 training, because the timing file came with the copied state.
+- Knowledge 20.0% (direct 15, indirect 15), +9 [1, 17]: line 1 PASS, but
+  below E3 (26.7%). Line 2 FAIL: twins refused 8 (limit 2).
+- Coverage: direct with the answer in unit data 75 (15 correct; E3 18);
+  indirect 57 (15 correct; E3 19).
+- Recall of training questions: fact_q1 89%, fact_q2 95%, fact_q3 89%
+  (E3 96-97%). Rewrites 0 of 26: the model does not repeat the long rewrite
+  answers.
+- Conclusion: the result is between E3 and E5. The trap rows removed about
+  6 correct answers (E5 -> E5a), but the other 10 (E5a -> E3) come from the
+  E5 data itself (new teacher samples, the recovered fact_qa rows) or from
+  run-to-run variation. With 150 questions, one standard error is about
+  3.5 points, so none of these differences is certain.
+- Twins refused 8 with no trap rows in the data. So the twin refusals do not
+  come from the trap rows.
+- Decision: run E5b with `facts_share` 0.5 (no change).
 
 ## E5b: traps made by code (planned)
 
