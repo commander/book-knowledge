@@ -4,6 +4,7 @@
   python src/diagnose_run.py data     --state work/state-e1
   python src/diagnose_run.py coverage --state work/state-e1 --run pipeline-e1 --book critical-software-studies --exam dev
   python src/diagnose_run.py recall   --state work/state-e1 --n 300          (GPU, vLLM)
+  python src/diagnose_run.py traps    --state work/state-e5
 
 data      Why the facts and data stages lost units and pairs: the facts and fact_qa
           replies with no JSON (before and after the quote repair), the words that the forbidden-word check found,
@@ -14,6 +15,8 @@ coverage  For each knowledge item of the exam: is its answer in the training dat
 recall    Asks the trained model a sample of its own training questions (exam answer
           settings: chat template, greedy, 256 tokens) and counts the answers that
           contain the fact key or start with the trained answer. A low share means the model did not learn its data.
+traps     Runs the trap/twin checks again on the saved teacher replies and prints
+          examples of each reason for a removed pair. No GPU.
 
 The word match is rough: a gold answer is "in" a text if all its words of 3 or more
 letters (stop words not counted) are in the text.
@@ -199,6 +202,34 @@ def cmd_coverage(a):
                 print(f"TRAINING ROW: Q: {hit['question']}\n              A: {hit['answer']}")
 
 
+# ---------------------------------------------------------------- traps
+
+def cmd_traps(a):
+    from book_pipeline.data import check_trap, drop_source_phrase
+    d = book_dir(a.state)
+    cfg = __import__("json").loads((Path(a.config)).read_text(encoding="utf-8"))["data"]["traps"]
+    facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
+    by_reason = {}
+    for r in read_jsonl(d / "raw" / "traps.jsonl"):
+        items = parse_json_list(r["reply"]) or []
+        for it in items:
+            if not (isinstance(it, dict) and isinstance(it.get("fact"), int) and 1 <= it["fact"] <= len(r["facts"])):
+                continue
+            it = {k: drop_source_phrase(v) if k.endswith(("_q", "_a")) and isinstance(v, str) else v
+                  for k, v in it.items()}
+            f = facts[r["facts"][it["fact"] - 1]]
+            by_reason.setdefault(check_trap(it, f, cfg["max_word_diff"]) or "kept", []).append((f, it))
+    print("trap/twin pairs by check result: " + str({k: len(v) for k, v in sorted(by_reason.items())}))
+    rng = random.Random(0)
+    for reason, got in sorted(by_reason.items()):
+        print(f"\n=== {reason} ({len(got)})")
+        for f, it in rng.sample(got, min(a.show, len(got))):
+            print(f"--- FACT: {f['fact']}  (key: {f['key']})\n"
+                  f"  true_detail: {it.get('true_detail')!r}   false_detail: {it.get('false_detail')!r}\n"
+                  f"  TRUE Q:  {it.get('true_q')}\n  TRUE A:  {it.get('true_a')}\n"
+                  f"  FALSE Q: {it.get('false_q')}\n  FALSE A: {it.get('false_a')}")
+
+
 # ---------------------------------------------------------------- recall
 
 def cmd_recall(a):
@@ -257,6 +288,11 @@ def main():
     s.add_argument("--work", default="work")
     s.add_argument("--show", type=int, default=8)
     s.set_defaults(func=cmd_coverage)
+    s = sub.add_parser("traps")
+    s.add_argument("--state", required=True)
+    s.add_argument("--config", default="pipeline_config.json")
+    s.add_argument("--show", type=int, default=4)
+    s.set_defaults(func=cmd_traps)
     s = sub.add_parser("recall")
     s.add_argument("--state", required=True)
     s.add_argument("--model", help="default: <state>/model")
