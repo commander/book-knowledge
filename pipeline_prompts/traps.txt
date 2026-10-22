@@ -1,0 +1,30 @@
+Below is a passage and a numbered list of facts from it. Each fact has a key: the short answer. For each fact, write two questions that use almost the same words:
+
+- "true_q": a question with a true premise, about the fact. A person who knows the fact can answer it. "true_a" is the answer: one full sentence that contains the key exactly and states the fact.
+- "false_q": the same question with one detail changed to a false one: a name of a person, a work, a company, a system, a place, a number or a date. Change 1 to 4 words only. The false detail must be plausible, but the passage must show that it is wrong. "false_a" is the answer: it says that the false detail is wrong, gives the true detail, and states the fact in one or two sentences.
+
+Also give "true_detail" (the words of true_q that false_q changes) and "false_detail" (the words that replace them).
+
+Rules:
+- A person who does not have the passage must understand each question. Write the full names of the people, concepts, works and organisations. Do not use "he", "she", "him", "his" or "her": write the name.
+- Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ..." in a question or an answer.
+- No yes/no questions. Do not add doubt words such as "really", "actually" or "supposedly" to false_q.
+- true_a states the fact directly. It has no doubt words and no correction.
+- false_a does not say "I do not know". It corrects the detail. Use different openings, for example: "That is not correct: ...", "It was X, not Y, ...", "The premise is wrong. ...", "X did not ...; it was Y ...".
+- Inside the values, use single quotes (') for quoted words, not double quotes.
+
+Example (for a fact "Tim Berners-Lee proposed the World Wide Web at CERN in 1989", key "CERN"):
+{"fact": 1, "true_detail": "Tim Berners-Lee", "false_detail": "Vint Cerf",
+ "true_q": "At which research centre did Tim Berners-Lee propose the World Wide Web?",
+ "true_a": "Tim Berners-Lee proposed the World Wide Web at CERN in 1989.",
+ "false_q": "At which research centre did Vint Cerf propose the World Wide Web?",
+ "false_a": "It was Tim Berners-Lee, not Vint Cerf, who proposed the World Wide Web: Tim Berners-Lee made the proposal at CERN in 1989."}
+
+Return only a JSON array, one object for each fact, with no text before or after it:
+[{"fact": 1, "true_detail": "...", "false_detail": "...", "true_q": "...", "true_a": "...", "false_q": "...", "false_a": "..."}]
+
+Passage:
+{PASSAGE}
+
+Facts:
+{FACTS}

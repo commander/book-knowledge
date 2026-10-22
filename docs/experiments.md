@@ -223,3 +223,49 @@ Conclusions:
 - 3 epochs at about 465k tokens per epoch did not memorise the data (end loss
   0.49, E2: 0.001). E3 used less GPU time than E2.
 
+
+### E3 data check (`diagnose_run.py data`)
+
+- facts: 83 replies fail the plain JSON parse, and 12 still fail after the
+  quote repair. Causes in the examples: two objects joined into one (no
+  `}, {` between them), and a quoted title after a comma
+  (`track, "Sense of Doubt".`) that the quote repair did not escape.
+- fact_qa: 111 of 787 replies have no JSON after the repair (395 facts lost).
+  In all 5 examples, the teacher left out a closing bracket: `"}]]` (the
+  object has no `}`) or `"}]}` (no outer `]`).
+
+## E5: JSON bracket repairs, trap/twin pairs (planned)
+
+Decision (2026-10-22): E5 comes before E4, because line 2 is the only failed
+line. The JSON repairs go in the same run, to save Colab time. Part of the
+knowledge change in E5 comes from the repairs (about 400 more facts with
+questions).
+
+Changes from E3:
+- JSON repairs (`facts.py`, used by all teacher parts):
+  - after a comma, a double quote opens a string only when a key follows
+    (`"word":`);
+  - a `"fact":` key after a comma gets the missing `}, {` before it;
+  - missing closing brackets are added (`balance_brackets`);
+  - an object with the same key two times is not valid (two joined objects).
+- Trap/twin pairs (3d, `data.traps`, prompt `traps.txt`): for half of the
+  facts (random, fixed seed), a true question (twin) and the same question
+  with one false detail (trap). The twin answer states the fact with the key.
+  The trap answer says that the false detail is wrong and gives the true one.
+  No "I do not know" answers.
+- Checks on each pair (pair removed): the questions differ by more than 4
+  words; the false detail is not in the trap question or is also in the twin
+  question; an added doubt word in the trap question; a twin answer without
+  the key or with correction words; a trap answer without the true detail,
+  without a negation, or with a "do not know" form; forbidden words, yes/no
+  questions, pronouns, duplicates.
+- Cue score (logistic regression on the words of the questions, 5 folds) is
+  only logged in this run.
+- Training: the same as E3.
+
+Estimate: about 1,300 pairs (2,600 rows); teacher about 10 min more; training
+about 90 min; total about 2.4 h.
+
+What to look at: traps accepted and dodged, twins refused (risk: more refusals
+of true questions), knowledge, the traps counts and cue score, the data check.
+If twins refused goes up, E5b uses a pair for every third fact.

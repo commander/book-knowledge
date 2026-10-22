@@ -9,7 +9,12 @@ Parts ("data.parts" in the config, settings in "data.<part>"):
                with a one-sentence answer that contains the key.
   rewrites     3c: each unit rewritten in several ways (one prompt for each way),
                as the answer to a user request.
+  traps        3d: for a share of the facts, a true question (twin) and the same
+               question with one false detail (trap). The trap answer rejects the
+               false detail and gives the true one. The twin answer is normal.
 """
+import difflib
+import random
 import re
 import time
 
@@ -228,7 +233,129 @@ def rewrites(ctx, teacher, units):
             "rewrites_dropped": dropped}
 
 
-PARTS = {"baseline_qa": baseline_qa, "fact_qa": fact_qa, "rewrites": rewrites}
+# A trap question must not differ from its twin by an added doubt word: the model must
+# find the false detail from the facts, not from such words.
+DOUBT_WORDS = re.compile(r"\b(really|actually|supposedly|allegedly|reportedly|claimed|claims|true that)\b", re.I)
+# Words of a correction or a refusal. A twin answer must not have them; a trap answer must
+# have a negation.
+CORRECTION = re.compile(r"^\W*no\b|\b(not correct|incorrect|false premise|premise is (wrong|false)|mistaken"
+                        r"|i do not know|i don't know|there is no information)\b", re.I)
+DODGE = re.compile(r"\b(i do not know|i don't know|there is no information|cannot be determined)\b", re.I)
+NEGATION = re.compile(r"\b(not|no|never|incorrect|wrong|mistaken|rather than|instead of)\b|n't\b", re.I)
+
+
+def word_diff(a, b):
+    """The number of changed words between two questions (the larger side of each change)."""
+    wa, wb = norm(a).rstrip("?").split(), norm(b).rstrip("?").split()
+    ops = difflib.SequenceMatcher(None, wa, wb, autojunk=False).get_opcodes()
+    return sum(max(i2 - i1, j2 - j1) for op, i1, i2, j1, j2 in ops if op != "equal")
+
+
+def check_trap(it, fact, max_diff):
+    """The reason to drop a trap/twin pair, or None if it is good."""
+    fields = ("true_detail", "false_detail", "true_q", "true_a", "false_q", "false_a")
+    if not all(isinstance(it.get(k), str) and it[k].strip() for k in fields):
+        return "bad_form"
+    tq, ta, fq, fa = it["true_q"], it["true_a"], it["false_q"], it["false_a"]
+    td, fd = it["true_detail"], it["false_detail"]
+    if any(FORBIDDEN_WORDS.search(x) for x in (tq, ta, fq, fa)):
+        return "forbidden_word"
+    if YES_NO.match(tq.strip()) or YES_NO.match(fq.strip()):
+        return "yes_no"
+    if PRONOUN.search(tq) or PRONOUN.search(fq):
+        return "pronoun"
+    if norm(tq) == norm(fq) or norm(td) == norm(fd) or not key_in(td, tq) or not key_in(fd, fq) \
+            or key_in(fd, tq):
+        return "detail_not_changed"
+    if word_diff(tq, fq) > max_diff:
+        return "too_many_words_changed"
+    if DOUBT_WORDS.search(fq) and not DOUBT_WORDS.search(tq):
+        return "doubt_word"
+    if not key_in(fact["key"], ta) or CORRECTION.search(ta):
+        return "twin_answer"
+    if not key_in(td, fa) or not NEGATION.search(fa) or DODGE.search(fa):
+        return "trap_answer"
+    return None
+
+
+def cue_score(questions, labels, seed):
+    """Mean 5-fold accuracy of a bag-of-words classifier that tells traps from twins.
+    Near 0.5: the words alone do not show which is the trap. None if scikit-learn is missing."""
+    try:
+        from sklearn.feature_extraction.text import CountVectorizer
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.model_selection import StratifiedKFold, cross_val_score
+    except ImportError:
+        return None
+    if len(set(labels)) < 2 or min(labels.count(0), labels.count(1)) < 5:
+        return None
+    x = CountVectorizer(binary=True).fit_transform(questions)
+    folds = StratifiedKFold(5, shuffle=True, random_state=seed)
+    return round(float(cross_val_score(LogisticRegression(max_iter=1000), x, labels, cv=folds).mean()), 3)
+
+
+def traps(ctx, teacher, units):
+    c = ctx.cfg["data"]["traps"]
+    tpl = prompt_template(c["prompt"])
+    text_of = {u["id"]: u["text"] for u in units}
+    facts = read_jsonl(ctx.book_dir / "facts.jsonl")
+    chosen = set(f["fact_id"] for f in random.Random(ctx.seed).sample(facts, round(len(facts) * c["facts_share"])))
+    by_unit = {}
+    for f in facts:
+        if f["fact_id"] in chosen:
+            by_unit.setdefault(f["unit_id"], []).append(f)
+    n = c["facts_per_call"]
+    jobs = [(uid, fs[i:i + n]) for uid, fs in by_unit.items() for i in range(0, len(fs), n)]
+
+    def prompt(job):
+        uid, fs = job
+        listed = "\n".join(f"{i}. {f['fact']} (key: {f['key']})" for i, f in enumerate(fs, 1))
+        return tpl.replace("{PASSAGE}", text_of[uid]).replace("{FACTS}", listed)
+
+    replies = run_json_jobs(ctx, teacher, c, [prompt(j) for j in jobs])
+    rows, raw, seen, fixed = [], [], set(), 0
+    dropped = {"no_json": 0, "fact_missing": 0, "bad_form": 0, "forbidden_word": 0, "yes_no": 0, "pronoun": 0,
+               "detail_not_changed": 0, "too_many_words_changed": 0, "doubt_word": 0, "twin_answer": 0,
+               "trap_answer": 0, "duplicate": 0}
+    for (uid, fs), (text, finish) in zip(jobs, replies):
+        items = parse_json_list(text)
+        raw.append({"unit_id": uid, "facts": [f["fact_id"] for f in fs], "reply": text, "finish": finish})
+        if items is None:
+            dropped["no_json"] += len(fs)
+            continue
+        got = {it["fact"]: it for it in items
+               if isinstance(it, dict) and isinstance(it.get("fact"), int) and 1 <= it["fact"] <= len(fs)}
+        for j, f in enumerate(fs, 1):
+            it = got.get(j)
+            if it is None:
+                dropped["fact_missing"] += 1
+                continue
+            it = dict(it)
+            for k in ("true_q", "true_a", "false_q", "false_a"):
+                if isinstance(it.get(k), str):
+                    fixed += bool(SOURCE_PHRASE.search(it[k]))
+                    it[k] = drop_source_phrase(it[k])
+            why = check_trap(it, f, c["max_word_diff"])
+            if why is None and (norm(it["true_q"]) in seen or norm(it["false_q"]) in seen):
+                why = "duplicate"
+            if why:
+                dropped[why] += 1
+                continue
+            seen.update({norm(it["true_q"]), norm(it["false_q"])})
+            base = {"unit_id": uid, "fact_id": f["fact_id"], "true_detail": it["true_detail"],
+                    "false_detail": it["false_detail"]}
+            rows.append({"type": "twin", **base, "question": it["true_q"], "answer": it["true_a"]})
+            rows.append({"type": "trap", **base, "question": it["false_q"], "answer": it["false_a"]})
+    write_jsonl(ctx.book_dir / "data" / "traps.jsonl", rows)
+    write_jsonl(ctx.book_dir / "raw" / "traps.jsonl", raw)
+    score = cue_score([r["question"] for r in rows], [int(r["type"] == "trap") for r in rows], ctx.seed)
+    return {"traps": {"pairs": len(rows) // 2, "facts_chosen": len(chosen), "teacher_calls": len(jobs),
+                      "source_phrases_removed": fixed, "cue_score": score,
+                      "replies_cut": sum(r["finish"] == "length" for r in raw)},
+            "traps_dropped": dropped}
+
+
+PARTS = {"baseline_qa": baseline_qa, "fact_qa": fact_qa, "rewrites": rewrites, "traps": traps}
 
 
 def run(ctx):

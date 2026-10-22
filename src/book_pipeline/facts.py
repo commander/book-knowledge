@@ -19,17 +19,21 @@ def norm(s):
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+KEY_AHEAD = re.compile(r'"\w{1,30}"\s*:')
+
+
 def escape_inner_quotes(s):
     """Escape the double quotes inside string values. The teacher often copies
     quoted words from the book ("critical mass") into a value without a backslash.
-    A quote is part of the JSON form only if it opens a string (after [ { , :) or
-    closes one (before a comma and the next string, or before : } ])."""
-    out, n = [], len(s)
+    A quote is part of the JSON form only if it opens a string (after [ { : , and
+    after a comma only when a key follows) or closes one (before a comma and the
+    next string, or before : } ])."""
+    out = []
     for i, ch in enumerate(s):
         if ch == '"' and (i == 0 or s[i - 1] != "\\"):
             before = s[:i].rstrip()[-1:]
             after = s[i + 1:].lstrip()
-            opens = before in ("[", "{", ",", ":")
+            opens = before in ("[", "{", ":") or (before == "," and KEY_AHEAD.match(s, i))
             closes = after[:1] in (":", "}", "]", "") or re.match(r',\s*["{\[]', after)
             if not (opens or closes):
                 out.append('\\"')
@@ -38,20 +42,83 @@ def escape_inner_quotes(s):
     return "".join(out)
 
 
-def parse_json_list(text):
-    """The first JSON array in a reply (also inside ```json fences). None if there is no valid array.
-    A reply that fails is tried again with the inner quotes escaped."""
-    start, end = text.find("["), text.rfind("]")
-    if start < 0 or end <= start:
-        return None
-    part = text[start:end + 1]
-    for candidate in (part, None):
-        try:
-            data = json.loads(candidate if candidate is not None else escape_inner_quotes(part))
-        except json.JSONDecodeError:
+# A "fact" key after a comma: the teacher left out the "}, {" between two objects.
+# "fact" is always the first key of an object in the facts and fact_qa replies.
+MISSING_SPLIT = re.compile(r'(")\s*,(\s*)("fact"\s*:)')
+
+
+def balance_brackets(s):
+    """Add the closing brackets that the teacher left out: a } before a ] that
+    comes too early ("}]]"), and the brackets still open at the end ("}]}").
+    Text after the end of the array, or after the last string or bracket, is removed."""
+    out, stack, in_str, esc, last = [], [], False, False, 0
+    for ch in s:
+        out.append(ch)
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+                last = len(out)
             continue
-        return data if isinstance(data, list) else None
-    return None
+        if ch == '"':
+            in_str = True
+        elif ch in "[{":
+            stack.append("]" if ch == "[" else "}")
+        elif ch in "]}":
+            while stack and stack[-1] != ch:
+                out.insert(len(out) - 1, stack.pop())
+            if stack:
+                stack.pop()
+            last = len(out)
+            if not stack:
+                return "".join(out)
+    if in_str:
+        return "".join(out)                    # cut inside a string: no repair
+    return "".join(out[:last]) + "".join(reversed(stack))
+
+
+def candidates(text, start, end):
+    """The reply part from the first [ to the last ], then each repair on top of the one
+    before. The bracket repair uses the full rest of the reply, because the last ] can
+    be inside the array when the outer ] is missing."""
+    part = text[start:end + 1] if end > start else ""
+    if part:
+        yield part
+        yield escape_inner_quotes(part)
+    joined = MISSING_SPLIT.sub(r"\1},\2{\3", escape_inner_quotes(text[start:]))
+    yield balance_brackets(joined)
+
+
+def no_duplicate_keys(pairs):
+    """A key two times in one object means two objects joined into one: not valid."""
+    keys = [k for k, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError(f"duplicate key in one object: {keys}")
+    return dict(pairs)
+
+
+def parse_json_list(text, return_error=False):
+    """The first JSON array in a reply (also inside ```json fences). None if there is no valid array.
+    A reply that fails is tried again with the repairs: inner quotes escaped, a missing "}, {"
+    added, missing closing brackets added. With return_error, also the last JSON error."""
+    start, end = text.find("["), text.rfind("]")
+    error = "no ["
+    if start >= 0:
+        for c in candidates(text, start, end):
+            try:
+                data = json.loads(c, object_pairs_hook=no_duplicate_keys)
+            except json.JSONDecodeError as e:
+                error = f"{e.msg} at {e.pos}: {c[max(0, e.pos - 80):e.pos + 40]!r}"
+                continue
+            except ValueError as e:
+                error = str(e)
+                continue
+            data = data if isinstance(data, list) else None
+            return (data, None) if return_error else data
+    return (None, error) if return_error else None
 
 
 def quote_in_unit(quote, unit_norm, min_share):

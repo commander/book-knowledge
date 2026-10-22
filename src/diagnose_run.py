@@ -92,7 +92,8 @@ def show_no_json(name, raw, id_key, rng, show):
     print("  reply length in characters (lost): " + str(sorted(len(r["reply"]) for r in lost)[::max(1, len(lost) // 10)]))
     for r in rng.sample(lost, min(show, len(lost))):
         print(f"  --- {r[id_key]} finish {r['finish']}, start of reply:\n  {r['reply'][:300]!r}\n"
-              f"  end of reply:\n  {r['reply'][-200:]!r}")
+              f"  end of reply:\n  {r['reply'][-200:]!r}\n"
+              f"  error after the repairs: {parse_json_list(r['reply'], return_error=True)[1]}")
 
 
 # ---------------------------------------------------------------- data
@@ -105,6 +106,15 @@ def cmd_data(a):
     show_no_json("facts", raw, "unit_id", rng, a.show)
     print(f"  units with 0 facts kept: {sum(r['kept'] == 0 for r in raw)}")
     show_no_json("fact_qa", read_jsonl(d / "raw" / "fact_qa.jsonl"), "unit_id", rng, a.show)
+    if (d / "raw" / "traps.jsonl").exists():
+        show_no_json("traps", read_jsonl(d / "raw" / "traps.jsonl"), "unit_id", rng, a.show)
+        rows = read_jsonl(d / "data" / "traps.jsonl")
+        twins = {r["fact_id"]: r for r in rows if r["type"] == "twin"}
+        print(f"trap/twin pairs: {len(twins)}. Examples:")
+        for r in rng.sample([r for r in rows if r["type"] == "trap"], min(a.show, len(twins))):
+            t = twins[r["fact_id"]]
+            print(f"  TWIN Q: {t['question']}\n  TWIN A: {t['answer']}\n  TRAP Q: {r['question']}\n"
+                  f"  TRAP A: {r['answer']}\n")
 
     facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
     hits_q, hits_a, no_key = Counter(), Counter(), []
@@ -209,7 +219,8 @@ def cmd_recall(a):
     for r, o in zip(sample, outs):
         resp = o.outputs[0].text
         # The fact key when there is one, otherwise the training answer.
-        target = keys.get(r.get("fact_id")) or r["answer"]
+        # A trap answer must give the true detail; other rows the fact key, or the training answer.
+        target = r.get("true_detail") if r["type"] == "trap" else keys.get(r.get("fact_id")) or r["answer"]
         if r.get("fact_id"):
             ok = contains(target, resp) or norm(resp).startswith(norm(r["answer"]))
         else:   # a long text: at least half of its content words are in the response
