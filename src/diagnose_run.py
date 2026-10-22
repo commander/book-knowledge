@@ -15,8 +15,8 @@ coverage  For each knowledge item of the exam: is its answer in the training dat
 recall    Asks the trained model a sample of its own training questions (exam answer
           settings: chat template, greedy, 256 tokens) and counts the answers that
           contain the fact key or start with the trained answer. A low share means the model did not learn its data.
-traps     Runs the trap/twin checks again on the saved teacher replies and prints
-          examples of each reason for a removed pair. No GPU.
+traps     Runs the trap checks again on the saved teacher replies and prints
+          examples of each reason for a removed trap. No GPU.
 
 The word match is rough: a gold answer is "in" a text if all its words of 3 or more
 letters (stop words not counted) are in the text.
@@ -112,12 +112,9 @@ def cmd_data(a):
     if (d / "raw" / "traps.jsonl").exists():
         show_no_json("traps", read_jsonl(d / "raw" / "traps.jsonl"), "unit_id", rng, a.show)
         rows = read_jsonl(d / "data" / "traps.jsonl")
-        twins = {r["fact_id"]: r for r in rows if r["type"] == "twin"}
-        print(f"trap/twin pairs: {len(twins)}. Examples:")
-        for r in rng.sample([r for r in rows if r["type"] == "trap"], min(a.show, len(twins))):
-            t = twins[r["fact_id"]]
-            print(f"  TWIN Q: {t['question']}\n  TWIN A: {t['answer']}\n  TRAP Q: {r['question']}\n"
-                  f"  TRAP A: {r['answer']}\n")
+        print(f"trap rows: {len(rows)}. Examples:")
+        for r in rng.sample(rows, min(a.show, len(rows))):
+            print(f"  TWIN Q: {r.get('twin_question')}\n  TRAP Q: {r['question']}\n  TRAP A: {r['answer']}\n")
 
     facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
     hits_q, hits_a, no_key = Counter(), Counter(), []
@@ -205,29 +202,27 @@ def cmd_coverage(a):
 # ---------------------------------------------------------------- traps
 
 def cmd_traps(a):
-    from book_pipeline.data import check_trap, drop_source_phrase
+    from book_pipeline.data import make_trap
     d = book_dir(a.state)
     cfg = __import__("json").loads((Path(a.config)).read_text(encoding="utf-8"))["data"]["traps"]
     facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
+    text_of = {u["id"]: u["text"] for u in read_jsonl(d / "units.jsonl")}
     by_reason = {}
     for r in read_jsonl(d / "raw" / "traps.jsonl"):
-        items = parse_json_list(r["reply"]) or []
-        for it in items:
-            if not (isinstance(it, dict) and isinstance(it.get("fact"), int) and 1 <= it["fact"] <= len(r["facts"])):
-                continue
-            it = {k: drop_source_phrase(v) if k.endswith(("_q", "_a")) and isinstance(v, str) else v
-                  for k, v in it.items()}
-            f = facts[r["facts"][it["fact"] - 1]]
-            by_reason.setdefault(check_trap(it, f, cfg["max_word_diff"]) or "kept", []).append((f, it))
-    print("trap/twin pairs by check result: " + str({k: len(v) for k, v in sorted(by_reason.items())}))
+        got = {it["n"]: it for it in parse_json_list(r["reply"]) or []
+               if isinstance(it, dict) and isinstance(it.get("n"), int)}
+        for j, t in enumerate(r["twins"], 1):
+            it = got.get(j, {})
+            why, made = make_trap(it, t, facts[t["fact_id"]], text_of[t["unit_id"]], cfg["max_word_diff"])
+            by_reason.setdefault(why or "kept", []).append((t, it, made))
+    print("traps by check result: " + str({k: len(v) for k, v in sorted(by_reason.items())}))
     rng = random.Random(0)
     for reason, got in sorted(by_reason.items()):
         print(f"\n=== {reason} ({len(got)})")
-        for f, it in rng.sample(got, min(a.show, len(got))):
-            print(f"--- FACT: {f['fact']}  (key: {f['key']})\n"
-                  f"  true_detail: {it.get('true_detail')!r}   false_detail: {it.get('false_detail')!r}\n"
-                  f"  TRUE Q:  {it.get('true_q')}\n  TRUE A:  {it.get('true_a')}\n"
-                  f"  FALSE Q: {it.get('false_q')}\n  FALSE A: {it.get('false_a')}")
+        for t, it, made in rng.sample(got, min(a.show, len(got))):
+            print(f"--- TWIN Q: {t['question']}\n  TWIN A: {t['answer']}  (key: {facts[t['fact_id']]['key']})\n"
+                  f"  detail: {it.get('detail')!r}   replacement: {it.get('replacement')!r}"
+                  + (f"\n  TRAP Q: {made[2]}" if made else ""))
 
 
 # ---------------------------------------------------------------- recall

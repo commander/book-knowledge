@@ -312,3 +312,31 @@ Conclusions:
   run-to-run variation. A train-only run on the E5 data without traps.jsonl
   separates the first cause from the others.
 
+
+## E5a: E5 data without the trap rows (train only, running)
+
+The E5 book folder copied to `work/state-e5a`, with `data/traps.jsonl` and the
+train and save outputs removed. Only the train and save stages run. Purpose:
+find if the trap rows caused the knowledge loss of E5.
+
+## E5b: traps made by code (planned)
+
+Changes from E5 (the trap part only):
+- The twin is an existing fact question (`fact_q1` or `fact_q2`) that passed
+  all checks. It stays in the data once, as a fact question.
+- The teacher gets 8 questions in each call, each with its answer and fact,
+  and gives only one `detail` (words copied from the question, not the
+  answer) and a false `replacement` of the same type.
+- The code replaces the detail in the twin question. So the trap and the twin
+  are always the same question except for the detail.
+- The trap answer is one of 5 opening forms (chosen with the seed) that names
+  the false and the true detail, then the twin answer.
+- A trap is removed when: the detail is not in the question, the detail is
+  (part of) the key, the replacement is not a change, the replacement is in
+  the unit text (it can be true), more than 4 words change, or the
+  replacement has a forbidden word or a pronoun.
+- Share: half of the facts that have a twin question. About 1,100 trap rows,
+  against about 6,000 true fact questions.
+
+The E5a result decides the amount: if the trap rows caused the loss in E5,
+E5b starts with a smaller share.

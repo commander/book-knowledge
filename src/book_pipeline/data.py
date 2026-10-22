@@ -9,9 +9,10 @@ Parts ("data.parts" in the config, settings in "data.<part>"):
                with a one-sentence answer that contains the key.
   rewrites     3c: each unit rewritten in several ways (one prompt for each way),
                as the answer to a user request.
-  traps        3d: for a share of the facts, a true question (twin) and the same
-               question with one false detail (trap). The trap answer rejects the
-               false detail and gives the true one. The twin answer is normal.
+  traps        3d: for a share of the facts, a trap question: one of its fact
+               questions (the twin) with one detail replaced by a false one. The
+               teacher picks the detail and the replacement; the code builds the
+               question and the answer (rejects the detail, then the twin answer).
 """
 import difflib
 import random
@@ -233,17 +234,6 @@ def rewrites(ctx, teacher, units):
             "rewrites_dropped": dropped}
 
 
-# A trap question must not differ from its twin by an added doubt word: the model must
-# find the false detail from the facts, not from such words.
-DOUBT_WORDS = re.compile(r"\b(really|actually|supposedly|allegedly|reportedly|claimed|claims|true that)\b", re.I)
-# Words of a correction or a refusal. A twin answer must not have them; a trap answer must
-# have a negation.
-CORRECTION = re.compile(r"^\W*no\b|\b(not correct|incorrect|false premise|premise is (wrong|false)|mistaken"
-                        r"|i do not know|i don't know|there is no information)\b", re.I)
-DODGE = re.compile(r"\b(i do not know|i don't know|there is no information|cannot be determined)\b", re.I)
-NEGATION = re.compile(r"\b(not|no|never|incorrect|wrong|mistaken|rather than|instead of)\b|n't\b", re.I)
-
-
 def word_diff(a, b):
     """The number of changed words between two questions (the larger side of each change)."""
     wa, wb = norm(a).rstrip("?").split(), norm(b).rstrip("?").split()
@@ -251,31 +241,42 @@ def word_diff(a, b):
     return sum(max(i2 - i1, j2 - j1) for op, i1, i2, j1, j2 in ops if op != "equal")
 
 
-def check_trap(it, fact, max_diff):
-    """The reason to drop a trap/twin pair, or None if it is good."""
-    fields = ("true_detail", "false_detail", "true_q", "true_a", "false_q", "false_a")
-    if not all(isinstance(it.get(k), str) and it[k].strip() for k in fields):
-        return "bad_form"
-    tq, ta, fq, fa = it["true_q"], it["true_a"], it["false_q"], it["false_a"]
-    td, fd = it["true_detail"], it["false_detail"]
-    if any(FORBIDDEN_WORDS.search(x) for x in (tq, ta, fq, fa)):
-        return "forbidden_word"
-    if YES_NO.match(tq.strip()) or YES_NO.match(fq.strip()):
-        return "yes_no"
-    if PRONOUN.search(tq) or PRONOUN.search(fq):
-        return "pronoun"
-    if norm(tq) == norm(fq) or norm(td) == norm(fd) or not key_in(td, tq) or not key_in(fd, fq) \
-            or key_in(fd, tq):
-        return "detail_not_changed"
-    if word_diff(tq, fq) > max_diff:
-        return "too_many_words_changed"
-    if DOUBT_WORDS.search(fq) and not DOUBT_WORDS.search(tq):
-        return "doubt_word"
-    if not key_in(fact["key"], ta) or CORRECTION.search(ta):
-        return "twin_answer"
-    if not key_in(td, fa) or not NEGATION.search(fa) or DODGE.search(fa):
-        return "trap_answer"
-    return None
+# The first sentence of a trap answer: it names the false detail and the true one. Several
+# forms, chosen with the seed, so that no single opening is learned.
+TRAP_OPENINGS = [
+    "That premise is not correct: the right detail is {true}, not {false}.",
+    "{false_cap} is not correct here; it is {true}.",
+    "Not {false}, but {true}.",
+    "The question contains an error: {true} is correct, not {false}.",
+    "This mixes up {false} and {true}. The correct detail is {true}.",
+]
+
+
+def make_trap(item, twin, fact, unit_text, max_diff):
+    """The trap question from the teacher's detail and replacement, or the reason to drop it.
+    The question is the twin question with one span replaced, so the two differ only there."""
+    detail, repl = item.get("detail"), item.get("replacement")
+    if not (isinstance(detail, str) and isinstance(repl, str) and detail.strip() and repl.strip()):
+        return "bad_form", None
+    detail, repl = detail.strip().strip("'\"."), repl.strip().strip("'\".")
+    q = twin["question"]
+    i = q.lower().find(detail.lower())
+    if i < 0:
+        return "detail_not_in_question", None
+    detail = q[i:i + len(detail)]                  # the exact span of the question
+    k = norm(fact["key"])
+    if norm(detail) in k or k in norm(detail):
+        return "detail_is_answer", None
+    if norm(repl) == norm(detail) or norm(repl) in norm(q):
+        return "not_changed", None
+    if norm(repl) in norm(unit_text):             # the replacement is in the passage: it can be true
+        return "replacement_in_passage", None
+    trap_q = q[:i] + repl + q[i + len(detail):]
+    if word_diff(q, trap_q) > max_diff:
+        return "too_many_words_changed", None
+    if FORBIDDEN_WORDS.search(repl) or PRONOUN.search(repl):
+        return "forbidden_word", None
+    return None, (detail, repl, trap_q)
 
 
 def cue_score(questions, labels, seed):
@@ -295,63 +296,61 @@ def cue_score(questions, labels, seed):
 
 
 def traps(ctx, teacher, units):
+    """3d: for a share of the facts, a trap made from one of its fact questions (the twin).
+    The teacher only picks one detail of the twin question and a false replacement; the code
+    builds the trap question and its answer. The twin stays in fact_qa.jsonl as it is."""
     c = ctx.cfg["data"]["traps"]
     tpl = prompt_template(c["prompt"])
     text_of = {u["id"]: u["text"] for u in units}
-    facts = read_jsonl(ctx.book_dir / "facts.jsonl")
-    chosen = set(f["fact_id"] for f in random.Random(ctx.seed).sample(facts, round(len(facts) * c["facts_share"])))
-    by_unit = {}
-    for f in facts:
-        if f["fact_id"] in chosen:
-            by_unit.setdefault(f["unit_id"], []).append(f)
-    n = c["facts_per_call"]
-    jobs = [(uid, fs[i:i + n]) for uid, fs in by_unit.items() for i in range(0, len(fs), n)]
+    facts = {f["fact_id"]: f for f in read_jsonl(ctx.book_dir / "facts.jsonl")}
+    rng = random.Random(ctx.seed)
+    twins = {}
+    for r in read_jsonl(ctx.book_dir / "data" / "fact_qa.jsonl"):
+        if r["type"] in c["twin_types"]:
+            twins.setdefault(r["fact_id"], []).append(r)
+    ids = sorted(twins)
+    chosen = rng.sample(ids, round(len(ids) * c["facts_share"]))
+    picks = [rng.choice(twins[fid]) for fid in chosen]
+    n = c["questions_per_call"]
+    jobs = [picks[i:i + n] for i in range(0, len(picks), n)]
 
     def prompt(job):
-        uid, fs = job
-        listed = "\n".join(f"{i}. {f['fact']} (key: {f['key']})" for i, f in enumerate(fs, 1))
-        return tpl.replace("{PASSAGE}", text_of[uid]).replace("{FACTS}", listed)
+        listed = "\n".join(f"{i}. Question: {t['question']}\n   Answer: {t['answer']}\n"
+                           f"   Fact: {facts[t['fact_id']]['fact']}" for i, t in enumerate(job, 1))
+        return tpl.replace("{QUESTIONS}", listed)
 
     replies = run_json_jobs(ctx, teacher, c, [prompt(j) for j in jobs])
-    rows, raw, seen, fixed = [], [], set(), 0
-    dropped = {"no_json": 0, "fact_missing": 0, "bad_form": 0, "forbidden_word": 0, "yes_no": 0, "pronoun": 0,
-               "detail_not_changed": 0, "too_many_words_changed": 0, "doubt_word": 0, "twin_answer": 0,
-               "trap_answer": 0, "duplicate": 0}
-    for (uid, fs), (text, finish) in zip(jobs, replies):
+    rows, raw, twin_qs = [], [], []
+    dropped = {"no_json": 0, "missing": 0, "bad_form": 0, "detail_not_in_question": 0, "detail_is_answer": 0,
+               "not_changed": 0, "replacement_in_passage": 0, "too_many_words_changed": 0, "forbidden_word": 0}
+    for job, (text, finish) in zip(jobs, replies):
         items = parse_json_list(text)
-        raw.append({"unit_id": uid, "facts": [f["fact_id"] for f in fs], "reply": text, "finish": finish})
+        raw.append({"twins": job, "reply": text, "finish": finish})
         if items is None:
-            dropped["no_json"] += len(fs)
+            dropped["no_json"] += len(job)
             continue
-        got = {it["fact"]: it for it in items
-               if isinstance(it, dict) and isinstance(it.get("fact"), int) and 1 <= it["fact"] <= len(fs)}
-        for j, f in enumerate(fs, 1):
-            it = got.get(j)
-            if it is None:
-                dropped["fact_missing"] += 1
+        got = {it["n"]: it for it in items
+               if isinstance(it, dict) and isinstance(it.get("n"), int) and 1 <= it["n"] <= len(job)}
+        for j, t in enumerate(job, 1):
+            if j not in got:
+                dropped["missing"] += 1
                 continue
-            it = dict(it)
-            for k in ("true_q", "true_a", "false_q", "false_a"):
-                if isinstance(it.get(k), str):
-                    fixed += bool(SOURCE_PHRASE.search(it[k]))
-                    it[k] = drop_source_phrase(it[k])
-            why = check_trap(it, f, c["max_word_diff"])
-            if why is None and (norm(it["true_q"]) in seen or norm(it["false_q"]) in seen):
-                why = "duplicate"
+            why, made = make_trap(got[j], t, facts[t["fact_id"]], text_of[t["unit_id"]], c["max_word_diff"])
             if why:
                 dropped[why] += 1
                 continue
-            seen.update({norm(it["true_q"]), norm(it["false_q"])})
-            base = {"unit_id": uid, "fact_id": f["fact_id"], "true_detail": it["true_detail"],
-                    "false_detail": it["false_detail"]}
-            rows.append({"type": "twin", **base, "question": it["true_q"], "answer": it["true_a"]})
-            rows.append({"type": "trap", **base, "question": it["false_q"], "answer": it["false_a"]})
+            detail, repl, trap_q = made
+            opening = rng.choice(TRAP_OPENINGS).format(true=detail, false=repl,
+                                                         false_cap=repl[:1].upper() + repl[1:])
+            rows.append({"type": "trap", "unit_id": t["unit_id"], "fact_id": t["fact_id"],
+                         "true_detail": detail, "false_detail": repl, "twin_question": t["question"],
+                         "question": trap_q, "answer": f"{opening} {t['answer']}"})
+            twin_qs.append(t["question"])
     write_jsonl(ctx.book_dir / "data" / "traps.jsonl", rows)
     write_jsonl(ctx.book_dir / "raw" / "traps.jsonl", raw)
-    score = cue_score([r["question"] for r in rows], [int(r["type"] == "trap") for r in rows], ctx.seed)
-    return {"traps": {"pairs": len(rows) // 2, "facts_chosen": len(chosen), "teacher_calls": len(jobs),
-                      "source_phrases_removed": fixed, "cue_score": score,
-                      "replies_cut": sum(r["finish"] == "length" for r in raw)},
+    score = cue_score(twin_qs + [r["question"] for r in rows], [0] * len(twin_qs) + [1] * len(rows), ctx.seed)
+    return {"traps": {"rows": len(rows), "facts_chosen": len(chosen), "teacher_calls": len(jobs),
+                      "cue_score": score, "replies_cut": sum(r["finish"] == "length" for r in raw)},
             "traps_dropped": dropped}
 
 
