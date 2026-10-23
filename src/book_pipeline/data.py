@@ -5,8 +5,10 @@ Each data part writes data/<part>.jsonl with rows
 
 Parts ("data.parts" in the config, settings in "data.<part>"):
   baseline_qa  E0: the baseline recipe prompt, N question-answer pairs per unit.
-  fact_qa      3a: 3 differently worded questions for each fact of stage 2, each
-               with a one-sentence answer that contains the key.
+  fact_qa      3a: differently worded questions for each fact of stage 2 (5 forms in
+               E6), each with a one-sentence answer that contains the key.
+  joined       3b: questions that need two facts from different units: fact A (the
+               context) and fact B (the key). The pairs share a rare word.
   rewrites     3c: each unit rewritten in several ways (one prompt for each way),
                as the answer to a user request.
   traps        3d: for a share of the facts, a trap question: one of its fact
@@ -15,9 +17,11 @@ Parts ("data.parts" in the config, settings in "data.<part>"):
                question and the answer (rejects the detail, then the twin answer).
 """
 import difflib
+import math
 import random
 import re
 import time
+from collections import Counter
 
 from .common import PROMPTS, read_jsonl, write_json, write_jsonl
 from .facts import norm, parse_json_list
@@ -106,6 +110,13 @@ def key_in(key, text):
     return bool(words) and all(re.search(rf"\b{re.escape(w)}", t) for w in words)
 
 
+def copies_text(q, text, n):
+    """True if the question has n or more words in a row from the text."""
+    w = re.findall(r"\w+", norm(q))
+    t = " " + " ".join(re.findall(r"\w+", norm(text))) + " "
+    return any(" " + " ".join(w[i:i + n]) + " " in t for i in range(len(w) - n + 1))
+
+
 def check_pair(q, a, fact):
     """The reason to drop a pair, or None if it is good."""
     if not (isinstance(q, str) and isinstance(a, str) and q.strip() and a.strip()):
@@ -155,8 +166,9 @@ def fact_qa(ctx, teacher, units):
     replies = run_json_jobs(ctx, teacher, c, [prompt(j) for j in jobs])
     rows, raw = [], []
     dropped = {"no_json": 0, "fact_missing": 0, "bad_form": 0, "forbidden_word": 0, "yes_no": 0, "pronoun": 0,
-               "repeats_question": 0, "key_not_in_answer": 0, "duplicate": 0}
+               "repeats_question": 0, "key_not_in_answer": 0, "copies_passage": 0, "duplicate": 0}
     fixed, seen, per = 0, set(), c["pairs_per_fact"]
+    copy_forms, copy_words = set(c.get("copy_check_forms", [])), c.get("copy_words", 5)
     for (uid, fs), (text, finish) in zip(jobs, replies):
         items = parse_json_list(text)
         raw.append({"unit_id": uid, "facts": [f["fact_id"] for f in fs], "reply": text, "finish": finish})
@@ -178,6 +190,8 @@ def fact_qa(ctx, teacher, units):
                     fixed += bool(SOURCE_PHRASE.search(q) or SOURCE_PHRASE.search(a))
                     q, a = drop_source_phrase(q), drop_source_phrase(a)
                 why = check_pair(q, a, f)
+                if why is None and k in copy_forms and copies_text(q, text_of[uid], copy_words):
+                    why = "copies_passage"
                 if why is None and norm(q) in seen:
                     why = "duplicate"
                 if why:
@@ -193,6 +207,102 @@ def fact_qa(ctx, teacher, units):
                         "source_phrases_removed": fixed, "teacher_calls": len(jobs),
                         "replies_cut": sum(r["finish"] == "length" for r in raw)},
             "fact_qa_dropped": dropped}
+
+
+def fact_words(f):
+    return {w for w in re.findall(r"\w+", norm(f["fact"] + " " + f["key"])) if len(w) >= 4}
+
+
+def pair_facts(facts, share, max_df, rng):
+    """For a share of the facts (fact B), the fact A of another unit that shares the most rare
+    words with it. A word is rare if at most max_df of the facts have it. Score: the sum of
+    log(N / df) of the shared rare words. Facts with no shared rare word get no pair."""
+    n = len(facts)
+    ws = {f["fact_id"]: fact_words(f) for f in facts}
+    df = Counter(w for s in ws.values() for w in s)
+    rare = {w for w, k in df.items() if 2 <= k <= max(2, max_df * n)}
+    by_word = {}
+    for f in facts:
+        for w in ws[f["fact_id"]] & rare:
+            by_word.setdefault(w, []).append(f)
+    chosen = rng.sample(facts, round(n * share))
+    pairs = []
+    for b in chosen:
+        score = Counter()
+        for w in ws[b["fact_id"]] & rare:
+            for a in by_word[w]:
+                if a["unit_id"] != b["unit_id"]:
+                    score[a["fact_id"]] += math.log(n / df[w])
+        if score:
+            best = max(score.values())
+            a_id = rng.choice(sorted(k for k, v in score.items() if v == best))
+            pairs.append((a_id, b))
+    return pairs
+
+
+def joined(ctx, teacher, units):
+    """3b: one question for each fact pair: the content of fact A leads to the key of fact B."""
+    c = ctx.cfg["data"]["joined"]
+    tpl = prompt_template(c["prompt"])
+    facts = read_jsonl(ctx.book_dir / "facts.jsonl")
+    by_id = {f["fact_id"]: f for f in facts}
+    rng = random.Random(ctx.seed)
+    pairs = pair_facts(facts, c["facts_share"], c["max_df"], rng)
+    n = c["pairs_per_call"]
+    jobs = [pairs[i:i + n] for i in range(0, len(pairs), n)]
+
+    def prompt(job):
+        listed = "\n".join(f"{i}. A: {by_id[a]['fact']}\n   B: {b['fact']} (key: {b['key']})"
+                           for i, (a, b) in enumerate(job, 1))
+        return tpl.replace("{PAIRS}", listed)
+
+    replies = run_json_jobs(ctx, teacher, c, [prompt(j) for j in jobs])
+    rows, raw, seen, fixed = [], [], set(), 0
+    dropped = {"no_json": 0, "missing": 0, "skip": 0, "bad_form": 0, "forbidden_word": 0, "yes_no": 0,
+               "pronoun": 0, "repeats_question": 0, "key_not_in_answer": 0, "key_in_question": 0, "duplicate": 0}
+    for job, (text, finish) in zip(jobs, replies):
+        items = parse_json_list(text)
+        raw.append({"pairs": [[a, b["fact_id"]] for a, b in job], "reply": text, "finish": finish})
+        if items is None:
+            dropped["no_json"] += len(job)
+            continue
+        got = {}
+        for it in items:
+            if isinstance(it, dict):
+                try:
+                    got[int(it.get("n"))] = it
+                except (TypeError, ValueError):
+                    pass
+        for j, (a_id, b) in enumerate(job, 1):
+            it = got.get(j)
+            if it is None:
+                dropped["missing"] += 1
+                continue
+            if it.get("skip"):
+                dropped["skip"] += 1
+                continue
+            q, a = it.get("q"), it.get("a")
+            if isinstance(q, str) and isinstance(a, str):
+                fixed += bool(SOURCE_PHRASE.search(q) or SOURCE_PHRASE.search(a))
+                q, a = drop_source_phrase(q), drop_source_phrase(a)
+            why = check_pair(q, a, b)
+            if why is None and key_in(b["key"], q):
+                why = "key_in_question"
+            if why is None and norm(q) in seen:
+                why = "duplicate"
+            if why:
+                dropped[why] += 1
+                continue
+            seen.add(norm(q))
+            rows.append({"type": "joined", "unit_id": b["unit_id"], "fact_id": b["fact_id"],
+                         "context_unit_id": by_id[a_id]["unit_id"], "context_fact_id": a_id,
+                         "question": q, "answer": a})
+    write_jsonl(ctx.book_dir / "data" / "joined.jsonl", rows)
+    write_jsonl(ctx.book_dir / "raw" / "joined.jsonl", raw)
+    return {"joined": {"rows": len(rows), "pairs": len(pairs), "teacher_calls": len(jobs),
+                       "source_phrases_removed": fixed,
+                       "replies_cut": sum(r["finish"] == "length" for r in raw)},
+            "joined_dropped": dropped}
 
 
 REWRITE = re.compile(r"REQUEST:\s*(.+?)\s*\n\s*TEXT:\s*(.+)", re.S | re.I)
@@ -354,7 +464,8 @@ def traps(ctx, teacher, units):
             "traps_dropped": dropped}
 
 
-PARTS = {"baseline_qa": baseline_qa, "fact_qa": fact_qa, "rewrites": rewrites, "traps": traps}
+PARTS = {"baseline_qa": baseline_qa, "fact_qa": fact_qa, "joined": joined, "rewrites": rewrites,
+         "traps": traps}
 
 
 def run(ctx):

@@ -1,8 +1,10 @@
-Below is a passage and a numbered list of facts from it. Each fact has a key: the short answer. For each fact, write 3 question-answer pairs. All 3 questions ask for the key, but each question uses different words and a different sentence form:
+Below is a passage and a numbered list of facts from it. Each fact has a key: the short answer. For each fact, write 5 question-answer pairs. All 5 questions ask for the key, but each question uses different words and a different sentence form:
 
 1. A "What", "Which" or "Who" question that names the topic of the fact.
 2. A question that starts with a different word ("Name", "In", "How", "Why", "When", "Where") and describes the fact from a different side, for example its context, its cause or its result.
-3. A question that describes what the key does or means, without the words of the key, and asks for its name or term.
+3. A question that describes what the key is, does or means, without the words of the key, and asks for its name or term: "What term ...", "What name ...", "Which concept ...".
+4. A question that starts with the wider topic of the passage: "In the history of ...", "In discussions of ...", "Within the ... approach, ...". Name the topic with its own words (a theory, a case, a method, a debate or a period), then ask for the key.
+5. A question that tells the fact again in new words: use other words and another order than the passage. Do not copy 5 or more words in a row from the passage (names are permitted).
 
 Rules:
 - A person who does not have the passage must understand each question. Write the full names of the people, concepts, works and organisations. Do not use "he", "she", "him", "his" or "her": write the name.
@@ -11,8 +13,16 @@ Rules:
 - Each answer is one full sentence that contains the key exactly and states the fact. Do not repeat the question at the start of the answer.
 - Inside the values, use single quotes (') for quoted words, not double quotes.
 
+Example, for the fact "Tim Berners-Lee proposed the World Wide Web at CERN in 1989." (key: CERN):
+[{"fact": 1, "pairs": [
+ {"q": "At which research centre did Tim Berners-Lee propose the World Wide Web?", "a": "Tim Berners-Lee proposed the World Wide Web at CERN in 1989."},
+ {"q": "Where did Tim Berners-Lee work at the time of the 1989 proposal for the World Wide Web?", "a": "Tim Berners-Lee wrote the 1989 proposal for the World Wide Web at CERN."},
+ {"q": "What is the name of the European particle physics laboratory where the World Wide Web was first proposed?", "a": "The World Wide Web was first proposed at CERN, the European particle physics laboratory."},
+ {"q": "In the early history of the internet, which laboratory was the workplace of the inventor of the World Wide Web?", "a": "The inventor of the World Wide Web, Tim Berners-Lee, worked at CERN."},
+ {"q": "Which organisation employed the scientist whose 1989 hypertext plan became the Web?", "a": "The 1989 hypertext plan that became the World Wide Web was written by Tim Berners-Lee at CERN."}]}]
+
 Return only a JSON array, one object for each fact, with no text before or after it:
-[{"fact": 1, "pairs": [{"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}]}]
+[{"fact": 1, "pairs": [{"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}]}]
 
 Passage:
 {PASSAGE}

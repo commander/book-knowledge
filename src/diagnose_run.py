@@ -7,8 +7,9 @@
   python src/diagnose_run.py traps    --state work/state-e5
 
 data      Why the facts and data stages lost units and pairs: the facts and fact_qa
-          replies with no JSON (before and after the quote repair), the words that the forbidden-word check found,
-          examples of reverse questions without the key.
+          replies with no JSON (before and after the quote repair), examples of joined and
+          trap rows, the words that the forbidden-word check found, examples of reverse
+          questions without the key.
 coverage  For each knowledge item of the exam: is its answer in the training data of
           its unit? Joined with the judge labels. This separates "the data does not
           have the fact" from "the model did not learn the fact". Refuses sealed books.
@@ -109,6 +110,15 @@ def cmd_data(a):
     show_no_json("facts", raw, "unit_id", rng, a.show)
     print(f"  units with 0 facts kept: {sum(r['kept'] == 0 for r in raw)}")
     show_no_json("fact_qa", read_jsonl(d / "raw" / "fact_qa.jsonl"), "unit_id", rng, a.show)
+    if (d / "raw" / "joined.jsonl").exists():
+        show_no_json("joined", read_jsonl(d / "raw" / "joined.jsonl"), "pairs", rng, a.show)
+        rows = read_jsonl(d / "data" / "joined.jsonl")
+        facts = {f["fact_id"]: f for f in read_jsonl(d / "facts.jsonl")}
+        print(f"joined rows: {len(rows)}. Examples:")
+        for r in rng.sample(rows, min(a.show, len(rows))):
+            print(f"  FACT A ({r['context_unit_id']}): {facts[r['context_fact_id']]['fact']}\n"
+                  f"  FACT B ({r['unit_id']}): {facts[r['fact_id']]['fact']}  (key: {facts[r['fact_id']]['key']})\n"
+                  f"  Q: {r['question']}\n  A: {r['answer']}\n")
     if (d / "raw" / "traps.jsonl").exists():
         show_no_json("traps", read_jsonl(d / "raw" / "traps.jsonl"), "unit_id", rng, a.show)
         rows = read_jsonl(d / "data" / "traps.jsonl")

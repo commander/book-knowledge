@@ -1,0 +1,26 @@
+Below is a numbered list of fact pairs. The two facts of a pair come from two different parts of one source and share a term, a person or a topic. Fact B has a key: the short answer.
+
+For each pair, write one question that needs both facts. The question uses the content of fact A as its starting point and asks for the key of fact B. Use one of these forms:
+- apply fact A to fact B: "Applying the idea of ... to ..., what ...?"
+- compare or contrast: "Unlike ..., which ...?" or "Like ..., what ...?"
+- link the two: "Which ... connects ... with ...?" or "If ... , what ...?"
+
+Rules:
+- Do not put the key of fact B, or its words, in the question.
+- A person who does not have the source must understand the question. Write the full names of the people, concepts, works and organisations. Do not use "he", "she", "him", "his" or "her": write the name.
+- Do not refer to the source: no "the passage", "the text", "this book", "the chapter", "the author" or "according to the ...".
+- No yes/no questions.
+- The answer is one or two sentences. It states the link between the two facts and contains the key of fact B exactly.
+- If the two facts have no sensible link, return {"n": <number>, "skip": true} for that pair.
+- Inside the values, use single quotes (') for quoted words, not double quotes.
+
+Example:
+1. A: Vint Cerf and Bob Kahn designed the TCP/IP protocols in the 1970s.
+   B: Tim Berners-Lee proposed the World Wide Web at CERN in 1989. (key: CERN)
+Reply: [{"n": 1, "q": "The World Wide Web runs over the network protocols that Vint Cerf and Bob Kahn designed; at which research centre was the Web first proposed?", "a": "The World Wide Web, which runs over the TCP/IP protocols of Vint Cerf and Bob Kahn, was first proposed at CERN in 1989."}]
+
+Return only a JSON array, one object for each pair, with no text before or after it:
+[{"n": 1, "q": "...", "a": "..."}]
+
+Pairs:
+{PAIRS}

@@ -394,3 +394,30 @@ Conclusions:
   only when it knows the true detail. At 20-27% knowledge, line 2 cannot
   pass. Knowledge is the first problem.
 
+
+## E6: transfer: 5 question forms for each fact, joined questions (planned)
+
+Purpose: the model repeats 93-95% of its training answers but answers only
+about 19% of the exam questions whose answer is in its data. E6 makes the
+training questions more like the exam questions. Changes from E5b:
+- fact_qa: 5 forms for each fact instead of 3 (3 facts in each call,
+  2,048 tokens):
+  1. "What/Which/Who" with the topic (as before);
+  2. another start word, another side of the fact (as before);
+  3. description -> name: "What term / name / concept ...";
+  4. topic first: "In the history of ...", "In discussions of ...";
+  5. the fact in new words. The code drops a form-5 question with 5 or more
+     words in a row from the unit (`copies_passage`), the same limit as the
+     exam check.
+  The prompt has a full example of the 5 forms (Berners-Lee / CERN).
+- joined (3b, new): for half of the facts (fact B), the fact A of another
+  unit that shares the most rare words (in at most 2% of the facts). The
+  teacher writes one question that starts from fact A and asks for the key
+  of fact B ("Applying ...", "Unlike ...", "Which ... connects ..."), or
+  skips the pair. Checks: the fact_qa checks, and the key of B must not be in
+  the question. Rows: type `joined`, `fact_id` = B, `context_fact_id` = A.
+- traps: off. At 20-27% knowledge, line 2 cannot pass (see E5b).
+- Training: the same as E3-E5b.
+
+Expected: about 10,000 fact rows, 1,000 joined rows, 700 rewrites. Training
+about 100 min; total GPU about 3 h (cap 5 h).
