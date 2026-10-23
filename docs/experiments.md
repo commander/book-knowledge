@@ -457,3 +457,39 @@ Conclusions:
 - Unit U0065 (dev-177) has 0 facts because its facts reply had no valid
   JSON.
 
+
+## E7: a second facts pass for the missed details (planned)
+
+Purpose: in E6, an exam key with its own question rows is answered 43% of the
+time. A key that is only in a rewrite row is answered 10% (direct) or 26%
+(indirect) of the time. 50 knowledge items (33%) have their key only in
+rewrites, and 14 more have no data. The fact extraction misses these details
+(names, examples, numbers, quoted terms).
+
+Coverage split (E6, `diagnose_run.py coverage`):
+
+| Key | Direct | Indirect |
+|---|---|---|
+| in question rows | 44 (19 correct) | 37 (16 correct) |
+| in rewrites only | 31 (3 correct) | 19 (5 correct) |
+| not in data | 12 (2 correct) | 2 (0 correct) |
+
+Changes from E6:
+- facts pass 2 (`facts.more`, prompt `facts_more.txt`): the teacher gets the
+  unit and the pass-1 facts and gives up to 8 facts that are not in the list
+  (names, terms in quotes, numbers, examples, who did what, list items). The
+  same checks as pass 1; a fact with a key or text of a pass-1 fact is a
+  duplicate. A unit with no pass-1 facts gets "(none)" as the list, so
+  pass 2 also gets back the units lost to JSON errors. Facts have a `pass`
+  field (1 or 2). Pass-2 replies: `raw/facts_more.jsonl`.
+- JSON repair: a reply with several values one after the other (E6:
+  `]}]\n[{"fact": 2`, `]}{"fact": 2`, `]}>{"fact": 2`) is read value by
+  value. An object with repeated keys that starts with "n" is split into
+  two objects (E6 joined losses).
+- joined: off. E6 does not show a gain, and some rows join two facts into
+  a false statement.
+- No change to the 5 question forms, the rewrites and the training.
+
+Expected: about 4,400 facts, about 16,000 fact rows, 700 rewrites. Training
+about 150 min; total GPU about 3.9 h (cap 5 h). If the facts count is much
+higher, lower `facts.more.max_new`.

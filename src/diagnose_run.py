@@ -6,8 +6,8 @@
   python src/diagnose_run.py recall   --state work/state-e1 --n 300          (GPU, vLLM)
   python src/diagnose_run.py traps    --state work/state-e5
 
-data      Why the facts and data stages lost units and pairs: the facts and fact_qa
-          replies with no JSON (before and after the quote repair), examples of joined and
+data      Why the facts and data stages lost units and pairs: the facts (both passes) and fact_qa
+          replies with no JSON (before and after the repairs), examples of pass-2 facts, joined and
           trap rows, the words that the forbidden-word check found, examples of reverse
           questions without the key.
 coverage  For each knowledge item of the exam: is its answer in the training data of
@@ -109,6 +109,17 @@ def cmd_data(a):
     raw = read_jsonl(d / "raw" / "facts.jsonl")
     show_no_json("facts", raw, "unit_id", rng, a.show)
     print(f"  units with 0 facts kept: {sum(r['kept'] == 0 for r in raw)}")
+    if (d / "raw" / "facts_more.jsonl").exists():
+        raw2 = read_jsonl(d / "raw" / "facts_more.jsonl")
+        show_no_json("facts pass 2", raw2, "unit_id", rng, a.show)
+        facts = read_jsonl(d / "facts.jsonl")
+        new = [f for f in facts if f.get("pass") == 2]
+        print(f"  new facts per unit: {dict(sorted(Counter(r['kept'] for r in raw2).items()))}")
+        print(f"  units with 0 facts after both passes: "
+              f"{len({r['unit_id'] for r in raw2} - {f['unit_id'] for f in facts})}")
+        print(f"pass 2 facts: {len(new)}. Examples:")
+        for f in rng.sample(new, min(a.show, len(new))):
+            print(f"  ({f['unit_id']}) {f['fact']}  (key: {f['key']})")
     show_no_json("fact_qa", read_jsonl(d / "raw" / "fact_qa.jsonl"), "unit_id", rng, a.show)
     if (d / "raw" / "joined.jsonl").exists():
         show_no_json("joined", read_jsonl(d / "raw" / "joined.jsonl"), "pairs", rng, a.show)

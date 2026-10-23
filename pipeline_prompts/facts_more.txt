@@ -1,0 +1,27 @@
+Read the passage below and the list of facts that were already taken from it. Find the specific facts in the passage that are NOT in the list yet. Look at the details that a reader could be asked about:
+- names of people, works, products, projects, organisations and places;
+- terms and phrases in quotes, and the names of methods, models and concepts;
+- numbers, dates, scales and amounts;
+- examples and cases, and what happened in them;
+- who said, proposed or did what;
+- the items of a list, the steps of a method, causes and results.
+
+Rules:
+- Do not repeat a fact of the list, and do not give the same key again.
+- One fact for each item. "fact" is one full sentence with a subject and a verb that states the fact, not only a term. Each fact must be clear without the passage: write the full names of the people, concepts and things. Do not use "he", "she", "it", "this", "the author", "the book", "the chapter" or "the passage".
+- "key": the short answer of the fact, 1 to 6 words (for example a name, a term, a number or a date).
+- "quote": an exact copy of 5 to 25 words from the passage that supports the fact.
+- Inside the values, use single quotes (') for quoted words, not double quotes.
+- Give up to 8 new facts. Do not add facts that are not in the passage. If the list already has all the facts, return [].
+
+Example, for a passage about the early web, with the list "- Tim Berners-Lee proposed the World Wide Web at CERN in 1989. (key: CERN)":
+[{"fact": "The first web browser written by Tim Berners-Lee was called WorldWideWeb.", "key": "WorldWideWeb", "quote": "the first browser, which he called WorldWideWeb"}]
+
+Return only a JSON array, with no text before or after it:
+[{"fact": "...", "key": "...", "quote": "..."}]
+
+Passage:
+{PASSAGE}
+
+Facts already listed:
+{FACTS}
