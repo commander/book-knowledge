@@ -18,6 +18,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E3 | 26.7% (40/150; direct 20, indirect 20) | +16 [9, 23], line 1 PASS | 3 / 56 / 1 | 4 / 21 / 5 | 0 | 1.91 h |
 | E5 | 16.0% (24/150; direct 15, indirect 9) | +5 [−2, 13] | 0 / 60 / 0 | 4 / 21 / 5 | 0 | 2.34 h |
 | E5a | 20.0% (30/150; direct 15, indirect 15) | +9 [1, 17], line 1 PASS | 1 / 58 / 1 | 5 / 17 / 8 | 0 | 1.4 h (train only, E5 data) |
+| E5b | 22.0% (33/150; direct 15, indirect 18) | +11 [3, 20], line 1 PASS | 3 / 55 / 2 | 4 / 22 / 4 | 0 | 1.82 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -341,7 +342,7 @@ find if the trap rows caused the knowledge loss of E5.
   come from the trap rows.
 - Decision: run E5b with `facts_share` 0.5 (no change).
 
-## E5b: traps made by code (planned)
+## E5b: traps made by code
 
 Changes from E5 (the trap part only):
 - The twin is an existing fact question (`fact_q1` or `fact_q2`) that passed
@@ -362,3 +363,34 @@ Changes from E5 (the trap part only):
 
 The E5a result decides the amount: if the trap rows caused the loss in E5,
 E5b starts with a smaller share.
+
+### E5b result
+
+- Data: facts 2,653; fact_qa 6,128 rows (2,367 facts); rewrites 700;
+  traps 212 rows. JSON loss after the repairs: facts 9 units, fact_qa 5
+  replies, traps 0.
+- Traps: 1,168 facts chosen, 212 kept (18%). Dropped: missing item 364,
+  detail not in the question 421 (the teacher took it from the answer or the
+  fact), detail is the key 143, replacement in the unit 19, not changed 8,
+  too many words 1. Cue score 0.196. Some kept traps are weak (general words:
+  "toolkit" -> "manual", "now" -> "in the past").
+- Training: 7,040 rows, 1,320 steps, loss 2.70 -> 0.37, 62 min.
+- Knowledge 22.0% (direct 15, indirect 18), +11 [3, 20]: line 1 PASS.
+  Traps 3 / 55 / 2, twins 4 / 22 / 4: line 2 FAIL.
+- Recall: fact questions 93-95%, trap rows 7 of 13 (54%), rewrites 0 of 29.
+- Coverage: direct with the answer in unit data 75 (14 correct); indirect
+  57 (17 correct).
+
+Conclusions:
+- 212 trap rows do not change the exam trap result (55 accepted).
+- E5, E5a and E5b give 16-22% with the same data method. E3 (26.7%) is
+  about 1.5 standard errors above them. E3 can be a high sample.
+- The model repeats 93-95% of its training answers, but it answers only
+  about 19% of the exam questions whose answer is in the unit data. The
+  problem is transfer from the training question forms to the exam forms,
+  not memorization. Example: dev-116 has a training row with almost the same
+  question and key, but the model gives a different answer.
+- Line 2 needs at least 52 of 60 traps rejected. A model can reject a trap
+  only when it knows the true detail. At 20-27% knowledge, line 2 cannot
+  pass. Knowledge is the first problem.
+
