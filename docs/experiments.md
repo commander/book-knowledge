@@ -20,6 +20,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E5a | 20.0% (30/150; direct 15, indirect 15) | +9 [1, 17], line 1 PASS | 1 / 58 / 1 | 5 / 17 / 8 | 0 | 1.4 h (train only, E5 data) |
 | E5b | 22.0% (33/150; direct 15, indirect 18) | +11 [3, 20], line 1 PASS | 3 / 55 / 2 | 4 / 22 / 4 | 0 | 1.82 h |
 | E6 | 30.0% (45/150; direct 24, indirect 21) | +19 [11, 28], line 1 PASS | 0 / 56 / 4 | 4 / 21 / 5 | 0 | 2.56 h |
+| E7 | 26.7% (40/150; direct 25, indirect 15) | +16 [8, 24], line 1 PASS | 2 / 53 / 5 | 4 / 22 / 4 | 0 | 3.70 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -458,7 +459,7 @@ Conclusions:
   JSON.
 
 
-## E7: a second facts pass for the missed details (planned)
+## E7: a second facts pass for the missed details
 
 Purpose: in E6, an exam key with its own question rows is answered 43% of the
 time. A key that is only in a rewrite row is answered 10% (direct) or 26%
@@ -493,3 +494,44 @@ Changes from E6:
 Expected: about 4,400 facts, about 16,000 fact rows, 700 rewrites. Training
 about 150 min; total GPU about 3.9 h (cap 5 h). If the facts count is much
 higher, lower `facts.more.max_new`.
+
+### E7 result
+
+- Facts: pass 1 2,712, pass 2 1,473 new; total 4,185 (per unit min 1,
+  median 12, max 18). No unit has 0 facts. JSON loss after the repairs is 0
+  in facts, pass 2 and fact_qa.
+- Some pass-2 keys are general phrases ("differences in approach", "failure
+  of Cloudflare software"). Others are good details (ALGOL, grid-think).
+- fact_qa 16,358 rows (3,751 facts), rewrites 696. Dropped: key not in the
+  answer 2,477, forbidden word 916, fact missing 690, copies passage 202.
+- Training: 17,054 rows, 3,198 steps, 146 min. Total GPU 3.70 h (E6 2.56 h).
+- Knowledge 26.7% (direct 25, indirect 15), +16 [8, 24]: line 1 PASS.
+  Traps 2 / 53 / 5, twins 4 / 22 / 4: line 2 FAIL. Everyday refused 0.
+- Recall: fact questions 96-99%, rewrites 0 of 5.
+
+Coverage split (E6 in brackets):
+
+| Key | Direct | Indirect |
+|---|---|---|
+| in question rows | 56, 24 correct (44, 19) | 42, 13 correct (37, 16) |
+| in rewrites only | 22, 1 correct (31, 3) | 14, 2 correct (19, 5) |
+| not in data | 11, 0 correct (12, 2) | 2, 0 correct (2, 0) |
+
+Conclusions:
+- Pass 2 does its job on the data: 17 more exam keys now have question rows.
+  But direct goes only from 24 to 25. A key with question rows is still
+  answered about 43% of the time (direct), so more keys in the data does not
+  give the same gain in answers.
+- Indirect goes from 21 to 15. Joined rows were on in E6 and off in E7, so
+  joined is the probable cause, but a change of 6 of 60 can also be noise.
+  The run-to-run variation is not measured yet.
+- Many wrong answers have a training row with the key, but the row asks
+  from another direction. Example: the training question "What was the error
+  in the learning management system?" has the key in the question, and the
+  exam asks "Which misconfigured system ...?". fact_qa has no check for the
+  key in the question (only joined has it).
+- In indirect questions, the model often answers about the first topic of
+  the question (the context unit) and not the key of the second unit, or it
+  repeats the question.
+- Cost: 45% more GPU time for 5 fewer correct answers. E7 as it is does not
+  replace E6 as the best run.
