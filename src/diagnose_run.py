@@ -172,14 +172,18 @@ def cmd_coverage(a):
     for t in train:
         by_unit.setdefault(t["unit_id"], []).append(t)
 
-    table, examples = Counter(), []
+    table, source, examples = Counter(), Counter(), []
     for r in rows:
         gold = [r["answer"]] + (r.get("accepted_variants") or [])
         units = r.get("unit_ids") or []
         mine = [t for u in units for t in by_unit.get(u, [])]
-        hit = next((t for t in mine if any(contains(g, t["question"] + " " + t["answer"]) for g in gold)), None)
+        hits = [t for t in mine if any(contains(g, t["question"] + " " + t["answer"]) for g in gold)]
+        qa_hits = [t for t in hits if not t["type"].startswith("rewrite")]
+        hit = (qa_hits or hits or [None])[0]
         if hit:
             where = "in unit data"
+            source[(r["set"].replace("knowledge_", ""), "in question rows" if qa_hits else "in rewrites only",
+                    labels.get(r["qid"], "missing"))] += 1
         elif any(any(contains(g, t["question"] + " " + t["answer"]) for g in gold) for t in train):
             where = "elsewhere in data"
         elif not mine:
@@ -197,6 +201,11 @@ def cmd_coverage(a):
         for where in ("in unit data", "elsewhere in data", "not in data", "unit has no data"):
             c = {lab: n for (ss, w, lab), n in table.items() if ss == s and w == where}
             print(f"    {where:18} total {sum(c.values()):3}  " + ", ".join(f"{k} {v}" for k, v in sorted(c.items())))
+            if where == "in unit data":
+                for src in ("in question rows", "in rewrites only"):
+                    c = {lab: n for (ss, w, lab), n in source.items() if ss == s and w == src}
+                    print(f"      {src:16} total {sum(c.values()):3}  "
+                          + ", ".join(f"{k} {v}" for k, v in sorted(c.items())))
     rng = random.Random(0)
     for want in ("in unit data", "not in data"):
         pick = [e for e in examples if e[0] == want and e[1] != "correct"]

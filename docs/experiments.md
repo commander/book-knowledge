@@ -19,6 +19,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E5 | 16.0% (24/150; direct 15, indirect 9) | +5 [−2, 13] | 0 / 60 / 0 | 4 / 21 / 5 | 0 | 2.34 h |
 | E5a | 20.0% (30/150; direct 15, indirect 15) | +9 [1, 17], line 1 PASS | 1 / 58 / 1 | 5 / 17 / 8 | 0 | 1.4 h (train only, E5 data) |
 | E5b | 22.0% (33/150; direct 15, indirect 18) | +11 [3, 20], line 1 PASS | 3 / 55 / 2 | 4 / 22 / 4 | 0 | 1.82 h |
+| E6 | 30.0% (45/150; direct 24, indirect 21) | +19 [11, 28], line 1 PASS | 0 / 56 / 4 | 4 / 21 / 5 | 0 | 2.56 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -395,7 +396,7 @@ Conclusions:
   pass. Knowledge is the first problem.
 
 
-## E6: transfer: 5 question forms for each fact, joined questions (planned)
+## E6: transfer: 5 question forms for each fact, joined questions
 
 Purpose: the model repeats 93-95% of its training answers but answers only
 about 19% of the exam questions whose answer is in its data. E6 makes the
@@ -421,3 +422,38 @@ training questions more like the exam questions. Changes from E5b:
 
 Expected: about 10,000 fact rows, 1,000 joined rows, 700 rewrites. Training
 about 100 min; total GPU about 3 h (cap 5 h).
+
+### E6 result
+
+- Data: facts 2,658 (9 units with no JSON); fact_qa 9,757 rows (q1 2,108,
+  q2 1,893, q3 1,998, q4 1,932, q5 1,826; 2,205 facts); joined 464 rows;
+  rewrites 695. `copies_passage` dropped 116 form-5 questions (about 6%).
+  No reply was cut at 2,048 tokens. JSON loss after the repairs: facts 9
+  units, fact_qa 9 replies (the teacher wrote several arrays one after the
+  other), joined 2 replies.
+- Joined: 1,327 pairs, 464 rows (35%). Dropped: key in the question 510,
+  repeats the question 151, key not in the answer 117, skip only 41. Many
+  pairs share only a common word ("overlapping", "before", "developers"),
+  and some answers join the two facts into a false statement.
+- Training: 10,916 rows, 2,047 steps, 96 min. Total GPU 2.56 h.
+- Knowledge 30.0% (direct 24, indirect 21), +19 [11, 28]: line 1 PASS.
+  Traps 0 / 56 / 4, twins 4 / 21 / 5: line 2 FAIL. Everyday refused 0.
+- Recall: fact questions 94-100%, joined 17 of 18, rewrites 0 of 19.
+- Coverage: direct with the answer in unit data 75 (22 correct, E5b 14);
+  indirect 56 (21 correct, E5b 17).
+
+Conclusions:
+- The 5 question forms help transfer. Direct goes from 15 to 24, the largest
+  change of all the runs. The method is the same as E5b except for the
+  question forms and the joined rows, so the gain is not only a high sample.
+- The indirect change (18 to 21) is in the noise. Only 464 joined rows were
+  kept and many are weak, so this run does not show if joined helps.
+- Many wrong answers name a related term or person from the same unit
+  (Fuller for Chun, GPT-3 for Codex, "algorithmic auditing" for
+  "triangulation"). The model knows the topic but not the exact key.
+- Some keys are only in rewrite rows (dev-131), and the model does not
+  repeat rewrites (recall 0%). The next coverage report shows how many
+  in-data keys are only in rewrites.
+- Unit U0065 (dev-177) has 0 facts because its facts reply had no valid
+  JSON.
+
