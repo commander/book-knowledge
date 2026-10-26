@@ -21,6 +21,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E5b | 22.0% (33/150; direct 15, indirect 18) | +11 [3, 20], line 1 PASS | 3 / 55 / 2 | 4 / 22 / 4 | 0 | 1.82 h |
 | E6 | 30.0% (45/150; direct 24, indirect 21) | +19 [11, 28], line 1 PASS | 0 / 56 / 4 | 4 / 21 / 5 | 0 | 2.56 h |
 | E7 | 26.7% (40/150; direct 25, indirect 15) | +16 [8, 24], line 1 PASS | 2 / 53 / 5 | 4 / 22 / 4 | 0 | 3.70 h |
+| E8 | 32.7% (49/150; direct 27, indirect 22) | +22 [13, 31], line 1 PASS | 3 / 53 / 4 | 3 / 27 / 0 | 1 | 2.86 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -552,7 +553,7 @@ changes the teacher samples and the training order.
   the `key_in_question_check` option (off in this config).
 - Expected: about 2.6 h GPU, as E6.
 
-## E8: drop the fact questions that contain the key (planned)
+## E8: drop the fact questions that contain the key
 
 Purpose: in E7, many wrong answers have a training row with the key, but the
 training question contains the key ("What was the error in the learning
@@ -570,4 +571,38 @@ Changes from E6:
 
 Expected: fewer fact rows than E6 (9,757); the data log gives the
 `key_in_question` count. Total GPU about 2.5 h or less.
+
+### E8 result
+
+- Facts: 2,710 (one pass). JSON loss after the repairs: 1 unit (U0051: the
+  reply repeats the same "quote" until the token limit). E6 lost 9 units.
+- fact_qa 9,127 rows (q1 2,093, q2 1,643, q3 1,838, q4 1,824, q5 1,729;
+  2,327 facts). `key_in_question` dropped 1,594 pairs (about 12% of the
+  pairs that the teacher gave). The other drops: key not in the answer
+  1,669, forbidden word 472, fact missing 395. Joined 496 rows (516 pairs
+  dropped for the key in the question), rewrites 699.
+- Training: 10,322 rows, 1,936 steps, 110 min. Total GPU 2.86 h.
+- Knowledge 32.7% (direct 27, indirect 22), +22 [13, 31]: line 1 PASS. This
+  is the highest score so far. Traps 3 / 53 / 4, twins 3 / 27 / 0: line 2
+  FAIL. Everyday refused 1 (line 3 PASS, limit 2).
+- Recall: fact questions 96-100%, joined 15 of 15, rewrites 1 of 24.
+
+Coverage split (E6 in brackets):
+
+| Key | Direct | Indirect |
+|---|---|---|
+| in question rows | 48, 24 correct (44, 19) | 37, 18 correct (37, 16) |
+| in rewrites only | 28, 3 correct (31, 3) | 20, 4 correct (19, 5) |
+| not in data | 10, 0 correct (12, 2) | 1, 0 correct (2, 0) |
+
+Conclusions:
+- A key with question rows is now answered about 50% of the time (E6 43%).
+  This agrees with the purpose of the check, but the gain over E6 is 4
+  answers (45 to 49). The E6r result is necessary to know if this is more
+  than the run-to-run variation.
+- The check removes 1,594 rows and the run is shorter than E7 (2.86 h).
+- A key that is only in a rewrite row is still almost never answered (7 of
+  48). Examples: "the liberty machine", "la perruque", "the table", "the
+  digital poorhouse". All are named terms in the unit that the facts pass
+  did not take.
 
