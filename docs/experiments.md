@@ -639,3 +639,48 @@ Conclusions:
 - The seed also changes the data: 1,156 more training rows in E6r than in
   E6 with the same settings.
 
+### E8 against E6 and E6r (paired, same exam items)
+
+`lab_eval.py score --run pipeline-e8 --baseline <run>`:
+
+| E8 against | Difference | 95% interval |
+|---|---|---|
+| E6 (30.0%) | +3 points | [−4, 9] |
+| E6r (26.0%) | +7 points | [−1, 15] |
+
+Both intervals include 0, so E8 is not proven better than E6. E8 stays the
+base for the next run: it is not worse, its data has no questions that
+give the answer away, and it has fewer rows than E6r.
+
+## E9: a terms pass for the named terms that have no fact (planned)
+
+Purpose: in E8, 48 knowledge items have their key only in rewrite rows, and
+the model answers 7 of them. Many of these keys are quoted terms or names in
+the unit ("the liberty machine", "la perruque", "the digital poorhouse",
+"Pieces of Eight"). E7 tried a full second facts pass: it added 1,473 facts
+and 1.1 h, and many of the new keys were general phrases. E9 lets the code
+choose the terms, so the teacher writes only a small number of facts.
+
+Changes from E8:
+- facts, terms pass (`facts.terms`, prompt `facts_terms.txt`), after pass 1:
+  - The code finds candidates in each unit: quoted terms ("...", curly
+    double quotes, curly single quotes) of 1 to 6 words, then runs of
+    capitalised words of 2 or more words, then single capitalised words.
+    A name must not be the first word of a sentence.
+  - A candidate is dropped if a kept fact of the unit has it as its key or
+    as a part of its key, or if it is in more than 2% of the units
+    (`max_df`; a topic of the book, not a detail). At most 3 terms for each
+    unit (`max_per_unit`), in the order above.
+  - The teacher gets the unit and the numbered terms, and writes one fact
+    for each term, or `skip`. The code sets the key to the term, drops a
+    fact that does not contain the term (`term_not_in_fact`), and applies
+    the pass-1 checks (quote in the unit, duplicates). The facts have
+    `pass` 3. Replies: `raw/facts_terms.jsonl`.
+- The new facts go through fact_qa (5 forms, key-in-question check) as all
+  other facts.
+- Seed 1234, as E8, so pass 1 and most fact_qa replies are the same as in
+  E8. The comparison with E8 is paired.
+
+Expected: a few hundred new facts, 1,500 to 2,500 more fact rows, about 30
+more minutes; total GPU about 3.3 h. The data log gives the counts.
+

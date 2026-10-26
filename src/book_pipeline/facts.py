@@ -2,7 +2,10 @@
 
 Pass 1 lists the facts of each unit. Pass 2 (optional, config "more") gives the
 teacher the unit and the pass-1 facts and asks for the details that are not in
-the list yet (names, examples, numbers, quoted terms).
+the list yet (names, examples, numbers, quoted terms). The terms pass (optional,
+config "terms") is pass 3: the code finds the quoted terms and the names of the
+unit that are rare in the book and are not a key yet, and the teacher writes one
+fact for each, with the term as the key.
 Each fact must have a quote that is in the unit. A fact with no matching quote
 is removed: this removes most facts that the teacher invented. Duplicate facts
 (the same key in the same unit, or the same fact text) are removed.
@@ -47,8 +50,8 @@ def escape_inner_quotes(s):
 
 # A "fact" or "n" key after a comma: the teacher left out the "}, {" between two objects.
 # "fact" is always the first key of an object in the facts and fact_qa replies, "n" in
-# the joined and traps replies.
-MISSING_SPLIT = re.compile(r'(")\s*,(\s*)("(?:fact|n)"\s*:)')
+# the joined and traps replies, "term" in the terms replies.
+MISSING_SPLIT = re.compile(r'(")\s*,(\s*)("(?:fact|n|term)"\s*:)')
 
 
 def balance_brackets(s):
@@ -226,6 +229,100 @@ def collect(units, replies, c, limit, kept, n_pass):
     return raw, total
 
 
+QUOTED = re.compile(r'"([^"\n]{2,80})"|\u201c([^\u201d\n]{2,80})\u201d|\u2018([^\u2019\n]{2,80})\u2019(?!\w)')
+# A run of capitalised words (and numbers) inside a sentence: "Puzzle Pirates", "Lotus 1-2-3",
+# "Pieces of Eight". Small linking words are permitted between two capitalised words.
+NAME_RUN = re.compile(r"[A-Z][\w\-/.]*(?:\s+(?:(?:of|the|de|la|le|von|van|for|and)\s+)?[A-Z0-9][\w\-/.]*)*")
+
+
+def words_of(s):
+    return " " + " ".join(re.findall(r"\w+", norm(s))) + " "
+
+
+def term_candidates(text):
+    """Quoted terms first, then names of 2 or more words, then names of one word (from the
+    second word of a sentence on, so a word is not a name only because it starts a sentence)."""
+    quoted = []
+    for m in QUOTED.finditer(text):
+        t = next(g for g in m.groups() if g).strip(" ,.;:!?")
+        if 1 <= len(t.split()) <= 6 and re.search(r"[A-Za-z]", t):
+            quoted.append(t)
+    multi, single = [], []
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        first = re.match(r"\S+\s*", sent)
+        rest = sent[first.end():] if first else ""
+        for m in NAME_RUN.finditer(rest):
+            t = re.sub(r"['\u2019]s$", "", m.group(0).rstrip(".-/"))
+            if len(t.split()) >= 2:
+                multi.append(t)
+            elif len(t) >= 3:
+                single.append(t)
+    return quoted + multi + single
+
+
+def unit_terms(units, kept, c):
+    """{unit_id: [terms]}: the candidates of each unit that are in at most max_df of the
+    units (a rare detail, not a topic of the whole book) and that no kept fact of the unit
+    has as its key (or as a part of its key). At most max_per_unit terms for each unit."""
+    texts = {u["id"]: words_of(u["text"]) for u in units}
+    limit_df = max(1, int(c["max_df"] * len(units)))
+    df_cache, out = {}, {}
+    for u in units:
+        keys = [words_of(f["key"]) for f in kept.get(u["id"], [])]
+        terms, seen = [], set()
+        for t in term_candidates(u["text"]):
+            w = words_of(t)
+            if w.strip() == "" or w in seen:
+                continue
+            seen.add(w)
+            if any(w in k or k in w for k in keys):
+                continue                                   # already a key, or a part of a key
+            if w not in df_cache:
+                df_cache[w] = sum(w in x for x in texts.values())
+            if df_cache[w] > limit_df:
+                continue
+            terms.append(t)
+            if len(terms) == c["max_per_unit"]:
+                break
+        if terms:
+            out[u["id"]] = terms
+    return out
+
+
+def collect_terms(units, terms, replies, c, kept):
+    """Clean the terms replies and add the facts (key = the term, pass 3) to kept."""
+    raw, total = [], {"skip": 0, "term_not_in_fact": 0, "bad_form": 0, "not_sentence": 0,
+                      "no_quote": 0, "duplicate": 0, "units_no_json": 0}
+    for u in units:
+        if u["id"] not in terms:
+            continue
+        ts = terms[u["id"]]
+        text, finish = replies[u["id"]]
+        items = parse_json_list(text)
+        total["units_no_json"] += items is None
+        cand = []
+        for it in items or []:
+            if not (isinstance(it, dict) and isinstance(it.get("term"), int) and 1 <= it["term"] <= len(ts)):
+                total["bad_form"] += 1
+                continue
+            if it.get("skip"):
+                total["skip"] += 1
+                continue
+            term = ts[it["term"] - 1]
+            if not isinstance(it.get("fact"), str) or words_of(term) not in words_of(it["fact"]):
+                total["term_not_in_fact"] += 1
+                continue
+            cand.append({"fact": it["fact"], "key": term, "quote": it.get("quote")})
+        old = kept.setdefault(u["id"], [])
+        seen = {norm(f[k]) for f in old for k in ("key", "fact")}
+        facts, dropped = clean_facts(cand, u["text"], c, len(ts), seen)
+        for k, v in dropped.items():
+            total[k] += v
+        raw.append({"unit_id": u["id"], "terms": ts, "reply": text, "finish": finish, "kept": len(facts)})
+        old += [{**f, "pass": 3} for f in facts]
+    return raw, total
+
+
 def run(ctx):
     c = ctx.cfg["facts"]
     units = read_jsonl(ctx.book_dir / "units.jsonl")
@@ -251,6 +348,22 @@ def run(ctx):
         meta["dropped_more"] = total2
         print(f"facts pass 2: {sum(x['kept'] for x in raw2)} new facts; removed: "
               + ", ".join(f"{k} {v}" for k, v in total2.items()))
+
+    tc = c.get("terms")
+    if tc:
+        terms = unit_terms(units, kept, tc)
+        todo = [u for u in units if u["id"] in terms]
+        tpl3 = (PROMPTS / tc["prompt"]).read_text(encoding="utf-8").rstrip("\n")
+        listed = lambda u: "\n".join(f"{i}. {t}" for i, t in enumerate(terms[u["id"]], 1))
+        replies = ask(teacher, todo, lambda u: tpl3.replace("{PASSAGE}", u["text"])
+                      .replace("{TERMS}", listed(u)), c, ctx.seed + 200) if todo else {}
+        raw3, total3 = collect_terms(units, terms, replies, c, kept)
+        write_jsonl(ctx.book_dir / "raw" / "facts_terms.jsonl", raw3)
+        n_terms = sum(len(v) for v in terms.values())
+        meta["terms"] = {"units": len(terms), "terms": n_terms, "facts": sum(x["kept"] for x in raw3)}
+        meta["dropped_terms"] = total3
+        print(f"facts terms: {meta['terms']['facts']} facts for {n_terms} terms in {len(terms)} units; removed: "
+              + ", ".join(f"{k} {v}" for k, v in total3.items()))
 
     rows = [{"unit_id": u["id"], **f} for u in units for f in kept[u["id"]]]
     for i, r in enumerate(rows, 1):

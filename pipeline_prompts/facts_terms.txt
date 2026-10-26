@@ -1,0 +1,22 @@
+Read the passage below and the numbered list of terms and names from it. For each term, write one fact from the passage in which the term is the answer: what the term is, means or names, who made, used or said it, or what it did.
+
+Rules:
+- "term": the number of the term in the list.
+- "fact": one full sentence with a subject and a verb. It must contain the term exactly as it is written in the list. The fact must be clear without the passage: write the full names of the people, concepts and things. Do not use "he", "she", "it", "this", "the author", "the book", "the chapter" or "the passage".
+- "quote": an exact copy of 5 to 25 words from the passage that supports the fact.
+- Inside the values, use single quotes (') for quoted words, not double quotes.
+- If the passage tells nothing specific about a term (for example, it is only a heading or a common word), give {"term": <number>, "skip": true}.
+- Do not add facts that are not in the passage.
+
+Example, for a passage about the early internet, with the terms "1. TCP/IP" and "2. Bob Kahn":
+[{"term": 1, "fact": "Vint Cerf and Bob Kahn designed TCP/IP as the common protocol for joining different computer networks.", "quote": "Cerf and Kahn designed TCP/IP so that different networks could be joined"},
+ {"term": 2, "fact": "Bob Kahn worked with Vint Cerf on the design of the internet protocols in 1973 and 1974.", "quote": "Kahn and Cerf worked on the design in 1973 and 1974"}]
+
+Return only a JSON array, one object for each term, with no text before or after it:
+[{"term": 1, "fact": "...", "quote": "..."}]
+
+Passage:
+{PASSAGE}
+
+Terms:
+{TERMS}
