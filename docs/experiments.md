@@ -23,6 +23,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E6r | 26.0% (39/150; direct 20, indirect 19) | +15 [7, 23], line 1 PASS | 0 / 59 / 1 | 4 / 22 / 4 | 0 | 2.85 h (E6 repeat, seed 4321) |
 | E7 | 26.7% (40/150; direct 25, indirect 15) | +16 [8, 24], line 1 PASS | 2 / 53 / 5 | 4 / 22 / 4 | 0 | 3.70 h |
 | E8 | 32.7% (49/150; direct 27, indirect 22) | +22 [13, 31], line 1 PASS | 3 / 53 / 4 | 3 / 27 / 0 | 1 | 2.86 h |
+| E8r | 30.7% (46/150; direct 23, indirect 23) | +20 [13, 27], line 1 PASS | 1 / 55 / 4 | 1 / 25 / 4 | 0 | 2.71 h (E8 repeat, same seed 1234; planned as E9) |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -651,6 +652,41 @@ Conclusions:
 Both intervals include 0, so E8 is not proven better than E6. E8 stays the
 base for the next run: it is not worse, its data has no questions that
 give the answer away, and it has fewer rows than E6r.
+
+## E8r: E8 repeat with the same seed (planned as E9)
+
+The run was started as E9, but the Drive had the old `pipeline_config.json`
+and `facts.py`: the run log says "experiment E8" and has no `facts terms:`
+line. The run is thus a repeat of E8 with the same seed (1234).
+
+Data: 2,715 facts (E8 2,710; 1 unit lost to a JSON error, U0025),
+fact_qa 9,187 rows (`key_in_question` dropped 1,634), joined 466,
+rewrites 692; 10,345 training rows, 1,940 steps, 103 min train.
+The same seed does not give the same data: vLLM batches are not
+deterministic, so the teacher replies are different.
+
+Result: 30.7% (direct 23, indirect 23). Against E8 (paired): −2 points,
+95% interval [−9, 5].
+
+Coverage (E8 in brackets):
+
+| | question rows (correct) | rewrites only (correct) | not in data |
+|---|---|---|---|
+| direct | 45 (20) [48 (24)] | 32 (2) [28 (3)] | 12 [10] |
+| indirect | 39 (20) [37 (18)] | 16 (3) [20 (4)] | 3 [1] |
+
+Recall of training questions: fact rows 95–100%, joined 100%,
+rewrite_explain 7%, rewrite_points 0%. The model does not learn the
+rewrite rows word for word, and keys that are only in rewrites are
+answered 5 of 48 times (E8: 7 of 48).
+
+Conclusions:
+- The E8 settings give 32.7% and 30.7%; the mean is about 31.7%. The
+  E6 settings gave 30.0% and 26.0%. Four runs show the same spread
+  (2 to 4 points) between repeats.
+- A key that has its own question rows is answered about 50% of the
+  time; a key that is only in rewrites, about 12%. E9 (terms pass) is
+  still the next step.
 
 ## E9: a terms pass for the named terms that have no fact (planned)
 
