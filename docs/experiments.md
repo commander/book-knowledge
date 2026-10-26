@@ -20,6 +20,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E5a | 20.0% (30/150; direct 15, indirect 15) | +9 [1, 17], line 1 PASS | 1 / 58 / 1 | 5 / 17 / 8 | 0 | 1.4 h (train only, E5 data) |
 | E5b | 22.0% (33/150; direct 15, indirect 18) | +11 [3, 20], line 1 PASS | 3 / 55 / 2 | 4 / 22 / 4 | 0 | 1.82 h |
 | E6 | 30.0% (45/150; direct 24, indirect 21) | +19 [11, 28], line 1 PASS | 0 / 56 / 4 | 4 / 21 / 5 | 0 | 2.56 h |
+| E6r | 26.0% (39/150; direct 20, indirect 19) | +15 [7, 23], line 1 PASS | 0 / 59 / 1 | 4 / 22 / 4 | 0 | 2.85 h (E6 repeat, seed 4321) |
 | E7 | 26.7% (40/150; direct 25, indirect 15) | +16 [8, 24], line 1 PASS | 2 / 53 / 5 | 4 / 22 / 4 | 0 | 3.70 h |
 | E8 | 32.7% (49/150; direct 27, indirect 22) | +22 [13, 31], line 1 PASS | 3 / 53 / 4 | 3 / 27 / 0 | 1 | 2.86 h |
 
@@ -538,7 +539,7 @@ Conclusions:
   replace E6 as the best run.
 
 
-## E6r: E6 repeat with another seed (planned)
+## E6r: E6 repeat with another seed
 
 Purpose: E5a to E7 differ by 3 to 9 correct answers. The run-to-run
 variation is not known, so it is not clear which of these differences are
@@ -605,4 +606,36 @@ Conclusions:
   48). Examples: "the liberty machine", "la perruque", "the table", "the
   digital poorhouse". All are named terms in the unit that the facts pass
   did not take.
+
+### E6r result
+
+- Facts 2,726 (no unit lost); fact_qa 10,949 rows (2,484 facts); joined
+  425 rows; rewrites 698. Training 12,072 rows (E6 10,916), 2,264 steps,
+  111 min. Total GPU 2.85 h.
+- Knowledge 26.0% (direct 20, indirect 19), +15 [7, 23]: line 1 PASS.
+  Traps 0 / 59 / 1, twins 4 / 22 / 4: line 2 FAIL. Everyday refused 0.
+- Recall: fact questions 97-100%, joined 10 of 12, rewrites 0 of 23.
+
+Coverage split (E6 in brackets):
+
+| Key | Direct | Indirect |
+|---|---|---|
+| in question rows | 45, 16 correct (44, 19) | 38, 16 correct (37, 16) |
+| in rewrites only | 25, 3 correct (31, 3) | 14, 3 correct (19, 5) |
+| not in data | 14, 0 correct (12, 2) | 5, 0 correct (2, 0) |
+
+Conclusions:
+- The same settings give 45 (E6) and 39 (E6r) correct answers: a
+  difference of 6 answers (4 points) from the seed only. The binomial
+  standard deviation of one run at 28% of 150 is about 5.5 answers
+  (3.7 points), so this difference is normal.
+- Consequence: a difference of 4-6 answers between two single runs does
+  not show a real effect. E3 to E8 are all between 39 and 49 answers.
+- E8 (49) is above both E6 runs (45, 39; mean 42). The difference to the
+  mean is 7 answers, about one standard deviation of a difference. This
+  supports the key check, but it does not prove it. A paired comparison on
+  the same exam items (`lab_eval.py score --baseline pipeline-e6`) gives a
+  smaller interval than two separate intervals against the baseline.
+- The seed also changes the data: 1,156 more training rows in E6r than in
+  E6 with the same settings.
 
