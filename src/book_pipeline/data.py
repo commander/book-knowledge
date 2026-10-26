@@ -110,6 +110,16 @@ def key_in(key, text):
     return bool(words) and all(re.search(rf"\b{re.escape(w)}", t) for w in words)
 
 
+def key_named(key, text):
+    """True if the key, or all its words of 3 or more letters, are in the text as full words.
+    Stricter than key_in: a short key ("AI") does not match inside another word ("explain")."""
+    k, t = norm(key), norm(text)
+    if re.search(rf"(?<!\w){re.escape(k)}(?!\w)", t):
+        return True
+    words = [w for w in re.findall(r"\w+", k) if len(w) >= 3]
+    return bool(words) and all(re.search(rf"\b{re.escape(w)}\b", t) for w in words)
+
+
 def copies_text(q, text, n):
     """True if the question has n or more words in a row from the text."""
     w = re.findall(r"\w+", norm(q))
@@ -166,8 +176,10 @@ def fact_qa(ctx, teacher, units):
     replies = run_json_jobs(ctx, teacher, c, [prompt(j) for j in jobs])
     rows, raw = [], []
     dropped = {"no_json": 0, "fact_missing": 0, "bad_form": 0, "forbidden_word": 0, "yes_no": 0, "pronoun": 0,
-               "repeats_question": 0, "key_not_in_answer": 0, "copies_passage": 0, "duplicate": 0}
+               "repeats_question": 0, "key_not_in_answer": 0, "key_in_question": 0, "copies_passage": 0,
+               "duplicate": 0}
     fixed, seen, per = 0, set(), c["pairs_per_fact"]
+    key_check = c.get("key_in_question_check", False)
     copy_forms, copy_words = set(c.get("copy_check_forms", [])), c.get("copy_words", 5)
     for (uid, fs), (text, finish) in zip(jobs, replies):
         items = parse_json_list(text)
@@ -190,6 +202,8 @@ def fact_qa(ctx, teacher, units):
                     fixed += bool(SOURCE_PHRASE.search(q) or SOURCE_PHRASE.search(a))
                     q, a = drop_source_phrase(q), drop_source_phrase(a)
                 why = check_pair(q, a, f)
+                if why is None and key_check and key_named(f["key"], q):
+                    why = "key_in_question"            # the question gives the answer away
                 if why is None and k in copy_forms and copies_text(q, text_of[uid], copy_words):
                     why = "copies_passage"
                 if why is None and norm(q) in seen:

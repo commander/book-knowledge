@@ -535,3 +535,39 @@ Conclusions:
   repeats the question.
 - Cost: 45% more GPU time for 5 fewer correct answers. E7 as it is does not
   replace E6 as the best run.
+
+
+## E6r: E6 repeat with another seed (planned)
+
+Purpose: E5a to E7 differ by 3 to 9 correct answers. The run-to-run
+variation is not known, so it is not clear which of these differences are
+real. E6r runs the E6 settings again with seed 4321 (E6: 1234). The seed
+changes the teacher samples and the training order.
+
+- Config: `configs/e6r.json` (the E6 config of commit 2f28254, only the seed
+  and the experiment name are different). Run with
+  `--config configs/e6r.json --state work/state-e6r`.
+- The code is the current code. Differences from the E6 code: the JSON
+  repairs of E7 (E6 lost 9 units and 9 fact_qa replies to JSON errors), and
+  the `key_in_question_check` option (off in this config).
+- Expected: about 2.6 h GPU, as E6.
+
+## E8: drop the fact questions that contain the key (planned)
+
+Purpose: in E7, many wrong answers have a training row with the key, but the
+training question contains the key ("What was the error in the learning
+management system?", key: learning management system). Such a row teaches
+the model to repeat the fact, not to find the key from a question. The
+joined questions have this check since E6; the fact questions do not.
+
+Changes from E6:
+- fact_qa: `key_in_question_check`: a pair is dropped (`key_in_question`)
+  if the question contains the key, or all words of 3 or more letters of the
+  key, as full words (`key_named` in `data.py`). This check is stricter than
+  the answer check: a short key ("AI") does not match inside a word.
+- Prompts, facts (one pass), joined, rewrites and training: the same as E6.
+  Seed 1234, as E6, so most teacher replies are the same as in E6.
+
+Expected: fewer fact rows than E6 (9,757); the data log gives the
+`key_in_question` count. Total GPU about 2.5 h or less.
+
