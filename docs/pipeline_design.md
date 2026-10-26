@@ -1,6 +1,6 @@
 # Pipeline design (freelancer side)
 
-Status: E0–E8, E6r and E8r done (best: E8, 32.7%, key-in-question check; E6 repeat: 30.0% and 26.0%, E8 repeat: 30.7%; so the run-to-run variation is 2 to 4 points), E9 code written (terms pass): stages split, facts, data (parts `baseline_qa`, `fact_qa`, `joined`, `rewrites`, `traps`), train (with length-grouped batches), save. The other stages do not exist yet. Results: `docs/experiments.md`.
+Status: E0–E9, E6r and E8r done (best: E8, 32.7%, key-in-question check; E6 repeat: 30.0% and 26.0%, E8 repeat: 30.7%; so the run-to-run variation is 2 to 4 points), E9 terms pass rejected (28.0%): stages split, facts, data (parts `baseline_qa`, `fact_qa`, `joined`, `rewrites`, `traps`), train (with length-grouped batches), save. The other stages do not exist yet. Results: `docs/experiments.md`.
 
 This document gives the design of `run_book.py`, the pipeline that puts the
 knowledge of one book into the weights of Qwen2.5-3B-Instruct. The rules and the

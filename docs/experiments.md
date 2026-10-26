@@ -24,6 +24,7 @@ Design and experiment list: `docs/pipeline_design.md` section 8.
 | E7 | 26.7% (40/150; direct 25, indirect 15) | +16 [8, 24], line 1 PASS | 2 / 53 / 5 | 4 / 22 / 4 | 0 | 3.70 h |
 | E8 | 32.7% (49/150; direct 27, indirect 22) | +22 [13, 31], line 1 PASS | 3 / 53 / 4 | 3 / 27 / 0 | 1 | 2.86 h |
 | E8r | 30.7% (46/150; direct 23, indirect 23) | +20 [13, 27], line 1 PASS | 1 / 55 / 4 | 1 / 25 / 4 | 0 | 2.71 h (E8 repeat, same seed 1234; planned as E9) |
+| E9 | 28.0% (42/150; direct 26, indirect 16) | +17 [9, 26], line 1 PASS | 1 / 57 / 2 | 4 / 22 / 4 | 0 | 2.81 h |
 
 ## E0: baseline data through the pipeline code (2026-10-21)
 
@@ -688,7 +689,7 @@ Conclusions:
   time; a key that is only in rewrites, about 12%. E9 (terms pass) is
   still the next step.
 
-## E9: a terms pass for the named terms that have no fact (planned)
+## E9: a terms pass for the named terms that have no fact
 
 Purpose: in E8, 48 knowledge items have their key only in rewrite rows, and
 the model answers 7 of them. Many of these keys are quoted terms or names in
@@ -719,4 +720,49 @@ Changes from E8:
 
 Expected: a few hundred new facts, 1,500 to 2,500 more fact rows, about 30
 more minutes; total GPU about 3.3 h. The data log gives the counts.
+
+### E9 result
+
+The first E9 run used the old config on the Drive; it is recorded above as
+E8r. This is the second run, with the E9 config.
+
+Data:
+- Terms pass: 670 terms in 301 units, 351 facts kept; removed: no_quote
+  289, term_not_in_fact 20, skip 2, duplicate 2. 3,061 facts in total
+  (pass 1: 2,710; 1 unit lost to the U0051 repetition loop again).
+- fact_qa 9,857 rows (`key_in_question` dropped 2,160), joined 511,
+  rewrites 695; 11,063 training rows, 2,075 steps, 102 min train.
+- Total GPU 2.81 h (facts 16.4 min, of which the terms pass is about 4 min).
+- Term quality is mixed. Good: "Situationists", "Fantin", "there is no
+  software", "backdoor". Weak: "assign", "leaked", "on average", "Canada",
+  "Chapter 7", "Bold", "Step 7". One fact says that its term "is not
+  directly mentioned in the passage".
+
+Result: 28.0% (direct 26, indirect 16). Against E8 (paired): −5 points,
+95% interval [−13, 3].
+
+Coverage:
+
+| | question rows (correct) | rewrites only (correct) | not in data |
+|---|---|---|---|
+| direct, E9 | 50 (21) | 27 (3) | 10 |
+| direct, E8 / E8r | 48 (24) / 45 (20) | 28 (3) / 32 (2) | 10 / 12 |
+| indirect, E9 | 38 (12) | 18 (4) | 2 |
+| indirect, E8 / E8r | 37 (18) / 39 (20) | 20 (4) / 16 (3) | 1 / 3 |
+
+Conclusions:
+- The terms pass moves only 2 to 5 direct keys into question rows. Many
+  missed keys are not quoted terms or names ("Daily recommended intake
+  percentages", "Maintaining their API contract"), so the term finder
+  cannot find them.
+- Direct is in the E8 range (26 against 27 and 23). Indirect fell to 16
+  (E8 22, E8r 23); the indirect keys with question rows are answered 12 of
+  38 (E8 18 of 37). The cause is not known; it can be run-to-run variation.
+- E9 is rejected. The terms pass stays in the code, but it is off in the
+  config. E8 stays the base.
+- A key with question rows is answered correctly in only about 45% of the
+  items, although the model recalls 95-100% of its training questions.
+  Many training questions do not name their context ("What method is
+  required to mitigate the limitations identified?"), so the exam question,
+  which names the context, does not match them.
 
